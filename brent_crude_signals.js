@@ -374,13 +374,26 @@ function askQuestion(query) {
   return new Promise((resolve) => rl.question(query, (ans) => { rl.close(); resolve(ans); }));
 }
 
-async function executeSignal(client, signal, ticker, orderQty, autoConfirm = false) {
+async function executeSignal(client, signal, ticker, orderQty, autoConfirm = false, cooldownMinutes = 60) {
   if (signal === "HOLD") {
     console.log("[INFO] Signal is HOLD — no order placed.");
     return null;
   }
 
   orderQty = Math.min(Math.max(1, Math.round(orderQty)), MAX_ORDER_QTY);
+
+  // Cooldown check — don't place duplicate orders on unchanged news
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const last = JSON.parse(await readFile("last_signal.json", "utf8"));
+    if (last.order && last.timestamp) {
+      const elapsedMin = (Date.now() - new Date(last.timestamp).getTime()) / 60000;
+      if (elapsedMin < cooldownMinutes) {
+        console.log(`[INFO] Cooldown active — last order was ${elapsedMin.toFixed(0)} min ago (cooldown: ${cooldownMinutes} min). Skipping.`);
+        return null;
+      }
+    }
+  } catch (_) { /* no last_signal.json yet — proceed */ }
 
   let position = null;
   try {
@@ -456,7 +469,7 @@ async function cmdSearchInstruments(client, query) {
 // Core run
 // ---------------------------------------------------------------------------
 
-async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
+async function runOnce(client, ticker, orderQty, execute, autoConfirm, cooldownMinutes = 60) {
   printHeader(client ? client.mode : "SIGNAL-ONLY");
 
   if (client) {
@@ -484,11 +497,12 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
 
   let orderResult = null;
   if (execute && client) {
-    orderResult = await executeSignal(client, signal, ticker, orderQty, autoConfirm);
+    orderResult = await executeSignal(client, signal, ticker, orderQty, autoConfirm, cooldownMinutes);
   }
 
   printDisclaimer();
 
+  // Always persist state so cooldown survives across runs (including GitHub Actions)
   const output = {
     timestamp:  new Date().toISOString(),
     signal,
@@ -502,15 +516,20 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
       .map(({ title, source, score }) => ({ title, source, score })),
   };
 
+  try {
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile("last_signal.json", JSON.stringify(output, null, 2));
+  } catch (err) {
+    console.warn(`[WARN] Could not write last_signal.json: ${err.message}`);
+  }
+
   return output;
 }
 
-async function runLoop(client, ticker, orderQty, execute, autoConfirm, intervalMinutes) {
+async function runLoop(client, ticker, orderQty, execute, autoConfirm, cooldownMinutes, intervalMinutes) {
   console.log(`Monitoring loop active — interval: ${intervalMinutes} min.  Ctrl+C to stop.\n`);
-  const { writeFile } = await import("node:fs/promises");
   while (true) {
-    const result = await runOnce(client, ticker, orderQty, execute, autoConfirm);
-    await writeFile("last_signal.json", JSON.stringify(result, null, 2));
+    await runOnce(client, ticker, orderQty, execute, autoConfirm, cooldownMinutes);
     console.log(`[INFO] Next refresh in ${intervalMinutes} minutes …`);
     await new Promise((r) => setTimeout(r, intervalMinutes * 60 * 1000));
   }
@@ -527,6 +546,7 @@ program
   .option("--quantity <number>",          `Number of shares per BUY order, capped at ${MAX_ORDER_QTY} (default: 1)`, (v) => parseInt(v, 10), 1)
   .option("--execute",                    "Submit orders to Trading 212 (requires T212_API_KEY + T212_SECRET_KEY)")
   .option("--auto-confirm",               "Skip confirmation prompts (for unattended operation)")
+  .option("--cooldown <minutes>",         "Minimum minutes between orders (default: 60)", (v) => parseInt(v, 10), 60)
   .option("--loop",                       "Run continuously")
   .option("--interval <minutes>",         "Refresh interval when --loop (default: 30)", parseInt, 30)
   .option("--search-instruments <query>", "Search tradeable instruments by name/ticker and exit")
@@ -554,10 +574,12 @@ const opts = program.opts();
 
   const orderQty = Math.min(Math.max(1, Math.round(opts.quantity ?? 1)), MAX_ORDER_QTY);
 
+  const cooldown = Math.max(0, opts.cooldown ?? 60);
+
   if (opts.loop) {
-    await runLoop(client, opts.ticker, orderQty, !!opts.execute, !!opts.autoConfirm, opts.interval);
+    await runLoop(client, opts.ticker, orderQty, !!opts.execute, !!opts.autoConfirm, cooldown, opts.interval);
   } else {
-    const result = await runOnce(client, opts.ticker, orderQty, !!opts.execute, !!opts.autoConfirm);
+    const result = await runOnce(client, opts.ticker, orderQty, !!opts.execute, !!opts.autoConfirm, cooldown);
     if (opts.json) {
       console.log(JSON.stringify(result, null, 2));
     }
