@@ -135,8 +135,6 @@ async function fetchRssNews(maxPerFeed = 10) {
           summary:   entry.contentSnippet || entry.content || "",
           source,
           published: entry.pubDate || "",
-          bullishHits: [],
-          bearishHits: [],
         });
       }
     } catch (err) {
@@ -158,8 +156,6 @@ async function fetchNewsApiNews(query = "oil brent crude geopolitical") {
       summary:   a.description || "",
       source:    a.source?.name || "NewsAPI",
       published: a.publishedAt || "",
-      bullishHits: [],
-      bearishHits: [],
     }));
   } catch (err) {
     console.warn(`[WARN] NewsAPI error: ${err.message}`);
@@ -234,15 +230,6 @@ async function fetchMarketData() {
 // Signal analysis
 // ---------------------------------------------------------------------------
 
-function analyseNews(items) {
-  for (const item of items) {
-    item.bullishHits = [];
-    item.bearishHits = [];
-    item.score = 0;
-  }
-  return items;
-}
-
 function computeNewsHash(items) {
   const content = items
     .map((i) => i.title)
@@ -301,7 +288,7 @@ Respond with a JSON object in this exact format (no markdown, no extra text):
   const netScore = typeof parsed.netScore === "number" ? parsed.netScore : 0;
 
   console.log(`  ${C.dim}Groq reasoning: ${parsed.reasoning}${C.reset}\n`);
-  return { signal, netScore, relevant: items, newsHash, source: "groq" };
+  return { signal, netScore, newsHash };
 }
 
 // ---------------------------------------------------------------------------
@@ -370,20 +357,15 @@ function printSignal(signal, netScore) {
 }
 
 function printTopItems(items, topN = 10) {
-  const ranked = [...items].sort((a, b) => Math.abs(b.score) - Math.abs(a.score)).slice(0, topN);
-  if (!ranked.length) {
-    console.log("  No geopolitically relevant headlines found.\n");
+  const top = items.slice(0, topN);
+  if (!top.length) {
+    console.log("  No headlines found.\n");
     return;
   }
-  console.log(`  ${C.bold}Top relevant headlines:${C.reset}`);
-  for (let i = 0; i < ranked.length; i++) {
-    const item = ranked[i];
-    const dirColor = item.score > 0 ? C.green : C.red;
-    const sign     = item.score > 0 ? "+" : "";
-    console.log(`  ${String(i + 1).padStart(2)}. [${col(dirColor, `${sign}${item.score}`)}] ${item.title.slice(0, 68)}`);
-    if (item.bullishHits.length) console.log(`       ${col(C.green, "▲")} ${item.bullishHits.slice(0, 4).join(", ")}`);
-    if (item.bearishHits.length) console.log(`       ${col(C.red,   "▼")} ${item.bearishHits.slice(0, 4).join(", ")}`);
-    console.log(`       ${C.dim}${item.source}${C.reset}\n`);
+  console.log(`  ${C.bold}Latest headlines:${C.reset}`);
+  for (let i = 0; i < top.length; i++) {
+    console.log(`  ${String(i + 1).padStart(2)}. ${top[i].title.slice(0, 80)}`);
+    console.log(`       ${C.dim}${top[i].source}${C.reset}\n`);
   }
 }
 
@@ -502,14 +484,13 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
   console.log("[INFO] Fetching NewsAPI headlines …");
   items = items.concat(await fetchNewsApiNews());
 
-  console.log(`[INFO] Analysing ${items.length} articles …`);
-  analyseNews(items);
+  console.log(`[INFO] Fetched ${items.length} articles …`);
 
-  const { signal, netScore, relevant, newsHash } = await computeSignal(items, market);
+  const { signal, netScore, newsHash } = await computeSignal(items, market);
 
   printMarket(market);
   printSignal(signal, netScore);
-  printTopItems(relevant);
+  printTopItems(items);
 
   let orderResult = null;
   if (execute && client) {
@@ -541,7 +522,7 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
     order:      orderResult,
     relevantHeadlines: items
       .slice(0, 10)
-      .map(({ title, source, score }) => ({ title, source, score })),
+      .map(({ title, source }) => ({ title, source })),
   };
 
   try {
