@@ -32,7 +32,7 @@ import readline from "node:readline";
 const T212_API_KEY      = process.env.T212_API_KEY;
 const T212_API_SECRET   = process.env.T212_SECRET_KEY;
 const NEWS_API_KEY      = process.env.NEWS_API_KEY;
-const GROQ_API_KEY      = process.env.GROQ_API_KEY;
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 const T212_BASE       = "https://demo.trading212.com/api/v0";
 
@@ -231,8 +231,8 @@ function computeNewsHash(items) {
 
 // Groq-powered signal analysis (free tier — moonshotai/kimi-k2-instruct)
 async function computeSignal(items, market) {
-  if (!GROQ_API_KEY) {
-    throw new Error("GROQ_API_KEY is not set in .env or GitHub Secrets.");
+  if (!OPENROUTER_API_KEY) {
+    throw new Error("OPENROUTER_API_KEY is not set in .env or GitHub Secrets.");
   }
 
   const newsHash = computeNewsHash(items);
@@ -257,19 +257,19 @@ Respond with a JSON object in this exact format (no markdown, no extra text):
 {"signal":"BUY","netScore":42,"reasoning":"one sentence"}`;
 
   const res = await axios.post(
-    "https://api.groq.com/openai/v1/chat/completions",
+    "https://openrouter.ai/api/v1/chat/completions",
     {
-      model: "moonshotai/kimi-k2-instruct",
+      model: "nvidia/nemotron-3-super-120b-a12b:free",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 256,
       temperature: 0.2,
     },
     {
       headers: {
-        Authorization: `Bearer ${GROQ_API_KEY}`,
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
       },
-      timeout: 20000,
+      timeout: 30000,
     }
   );
 
@@ -279,7 +279,7 @@ Respond with a JSON object in this exact format (no markdown, no extra text):
   const signal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
   const netScore = typeof parsed.netScore === "number" ? parsed.netScore : 0;
 
-  console.log(`  ${C.dim}Kimi reasoning: ${parsed.reasoning}${C.reset}\n`);
+  console.log(`  ${C.dim}Nemotron reasoning: ${parsed.reasoning}${C.reset}\n`);
   return { signal, netScore, newsHash };
 }
 
@@ -344,7 +344,7 @@ function printMarket(market) {
 
 function printSignal(signal, netScore) {
   const sigColor = signal === "BUY" ? C.green : signal === "SELL" ? C.red : C.yellow;
-  console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${col(C.dim, " (via Groq/Kimi-K2)")}${C.reset}`);
+  console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${col(C.dim, " (via Nemotron-3-Super-120B)")}${C.reset}`);
   console.log(`  Net score : ${netScore >= 0 ? "+" : ""}${netScore}\n`);
 }
 
