@@ -284,7 +284,7 @@ function computeSignalKeywords(items, market, bullishThreshold = 3, bearishThres
   return { signal, netScore, relevant, newsHash, source: "keywords" };
 }
 
-// Groq-powered signal analysis (free tier — llama-3.3-70b-versatile)
+// Groq-powered signal analysis (free tier — moonshotai/kimi-k2-instruct)
 async function computeSignalGroq(items, market) {
   const relevant = items.filter((i) => i.score !== 0);
   const newsHash = computeNewsHash(relevant);
@@ -312,7 +312,7 @@ Respond with a JSON object in this exact format (no markdown, no extra text):
   const res = await axios.post(
     "https://api.groq.com/openai/v1/chat/completions",
     {
-      model: "llama-3.3-70b-versatile",
+      model: "moonshotai/kimi-k2-instruct",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 256,
       temperature: 0.2,
@@ -407,7 +407,7 @@ function printMarket(market) {
 
 function printSignal(signal, netScore, source) {
   const sigColor = signal === "BUY" ? C.green : signal === "SELL" ? C.red : C.yellow;
-  const srcLabel = source === "groq" ? col(C.dim, " (via Groq/Llama)") : col(C.dim, " (keyword fallback)");
+  const srcLabel = source === "groq" ? col(C.dim, " (via Groq/Kimi-K2)") : col(C.dim, " (keyword fallback)");
   console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${srcLabel}${C.reset}`);
   console.log(`  Net score : ${netScore >= 0 ? "+" : ""}${netScore}\n`);
 }
