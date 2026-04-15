@@ -46,23 +46,6 @@ const RSS_FEEDS = [
   "https://www.aljazeera.com/xml/rss/all.xml",
 ];
 
-const BULLISH_KEYWORDS = [
-  "sanction", "sanctions", "embargo", "conflict", "war", "strike",
-  "attack", "pipeline", "explosion", "blockade", "disruption",
-  "opec cut", "production cut", "supply cut", "tension", "iran",
-  "russia", "ukraine", "houthi", "strait of hormuz", "red sea",
-  "middle east", "israel", "libya", "nigeria", "venezuela",
-  "hurricane", "refinery fire", "outage",
-];
-
-const BEARISH_KEYWORDS = [
-  "recession", "slowdown", "demand falls", "demand drop", "ceasefire",
-  "peace deal", "agreement", "opec increase", "production increase",
-  "surplus", "glut", "inventory build", "stockpile", "economic downturn",
-  "china slowdown", "rate hike", "fed hike", "dollar strength",
-  "ev adoption", "green energy", "renewables surge",
-];
-
 // ---------------------------------------------------------------------------
 // ANSI colours
 // ---------------------------------------------------------------------------
@@ -253,44 +236,30 @@ async function fetchMarketData() {
 
 function analyseNews(items) {
   for (const item of items) {
-    const text = `${item.title} ${item.summary}`.toLowerCase();
-    item.bullishHits = BULLISH_KEYWORDS.filter((kw) => text.includes(kw));
-    item.bearishHits = BEARISH_KEYWORDS.filter((kw) => text.includes(kw));
-    item.score = item.bullishHits.length - item.bearishHits.length;
+    item.bullishHits = [];
+    item.bearishHits = [];
+    item.score = 0;
   }
   return items;
 }
 
-function computeNewsHash(relevant) {
-  const content = relevant
-    .map((i) => `${i.title}|${i.score}`)
+function computeNewsHash(items) {
+  const content = items
+    .map((i) => i.title)
     .sort()
     .join("\n");
   return createHash("sha1").update(content).digest("hex").slice(0, 12);
 }
 
-// Keyword-based fallback signal (no Claude)
-function computeSignalKeywords(items, market, bullishThreshold = 3, bearishThreshold = -3) {
-  const relevant = items.filter((i) => i.score !== 0);
-  let netScore = relevant.reduce((sum, i) => sum + i.score, 0);
-  if (market) {
-    if (market.changePct > 1.5)  netScore += 1;
-    if (market.changePct < -1.5) netScore -= 1;
-  }
-  const signal =
-    netScore >= bullishThreshold ? "BUY" :
-    netScore <= bearishThreshold ? "SELL" : "HOLD";
-  const newsHash = computeNewsHash(relevant);
-  return { signal, netScore, relevant, newsHash, source: "keywords" };
-}
-
 // Groq-powered signal analysis (free tier — moonshotai/kimi-k2-instruct)
-async function computeSignalGroq(items, market) {
-  const relevant = items.filter((i) => i.score !== 0);
-  const newsHash = computeNewsHash(relevant);
+async function computeSignal(items, market) {
+  if (!GROQ_API_KEY) {
+    throw new Error("GROQ_API_KEY is not set in .env or GitHub Secrets.");
+  }
 
-  const headlines = [...items]
-    .sort((a, b) => Math.abs(b.score) - Math.abs(a.score))
+  const newsHash = computeNewsHash(items);
+
+  const headlines = items
     .slice(0, 25)
     .map((i) => `- ${i.title} [${i.source}]`)
     .join("\n");
@@ -332,18 +301,7 @@ Respond with a JSON object in this exact format (no markdown, no extra text):
   const netScore = typeof parsed.netScore === "number" ? parsed.netScore : 0;
 
   console.log(`  ${C.dim}Groq reasoning: ${parsed.reasoning}${C.reset}\n`);
-  return { signal, netScore, relevant, newsHash, source: "groq" };
-}
-
-async function computeSignal(items, market) {
-  if (GROQ_API_KEY) {
-    try {
-      return await computeSignalGroq(items, market);
-    } catch (err) {
-      console.warn(`[WARN] Groq API error (${err.message}) — falling back to keyword analysis.`);
-    }
-  }
-  return computeSignalKeywords(items, market);
+  return { signal, netScore, relevant: items, newsHash, source: "groq" };
 }
 
 // ---------------------------------------------------------------------------
@@ -405,10 +363,9 @@ function printMarket(market) {
   console.log(`  Volume : ${market.volume.toLocaleString()}\n`);
 }
 
-function printSignal(signal, netScore, source) {
+function printSignal(signal, netScore) {
   const sigColor = signal === "BUY" ? C.green : signal === "SELL" ? C.red : C.yellow;
-  const srcLabel = source === "groq" ? col(C.dim, " (via Groq/Kimi-K2)") : col(C.dim, " (keyword fallback)");
-  console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${srcLabel}${C.reset}`);
+  console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${col(C.dim, " (via Groq/Kimi-K2)")}${C.reset}`);
   console.log(`  Net score : ${netScore >= 0 ? "+" : ""}${netScore}\n`);
 }
 
@@ -548,10 +505,10 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
   console.log(`[INFO] Analysing ${items.length} articles …`);
   analyseNews(items);
 
-  const { signal, netScore, relevant, newsHash, source } = await computeSignal(items, market);
+  const { signal, netScore, relevant, newsHash } = await computeSignal(items, market);
 
   printMarket(market);
-  printSignal(signal, netScore, source);
+  printSignal(signal, netScore);
   printTopItems(relevant);
 
   let orderResult = null;
@@ -582,8 +539,7 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
     price:      market?.price ?? null,
     changePct:  market ? parseFloat(market.changePct.toFixed(2)) : null,
     order:      orderResult,
-    relevantHeadlines: [...relevant]
-      .sort((a, b) => Math.abs(b.score) - Math.abs(a.score))
+    relevantHeadlines: items
       .slice(0, 10)
       .map(({ title, source, score }) => ({ title, source, score })),
   };
