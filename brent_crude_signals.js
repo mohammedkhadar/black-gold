@@ -35,7 +35,7 @@ const NEWS_API_KEY    = process.env.NEWS_API_KEY;
 
 const T212_BASE       = "https://demo.trading212.com/api/v0";
 
-const DEFAULT_TICKER = "PBRTl_EQ"; // WisdomTree Brent Crude Oil - GBP Hedged (T212 paper)
+const DEFAULT_TICKER = "EBRTm_EQ"; // WisdomTree Brent Crude Oil - EUR Daily Hedged (T212 paper)
 const MAX_ORDER_QTY  = 1000;      // hard cap on quantity per order
 
 const RSS_FEEDS = [
