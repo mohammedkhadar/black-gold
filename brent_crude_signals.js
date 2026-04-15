@@ -32,7 +32,7 @@ import readline from "node:readline";
 const T212_API_KEY      = process.env.T212_API_KEY;
 const T212_API_SECRET   = process.env.T212_SECRET_KEY;
 const NEWS_API_KEY      = process.env.NEWS_API_KEY;
-const DEEPSEEK_API_KEY  = process.env.DEEPSEEK_API_KEY;
+const GROQ_API_KEY      = process.env.GROQ_API_KEY;
 
 const T212_BASE       = "https://demo.trading212.com/api/v0";
 
@@ -231,8 +231,8 @@ function computeNewsHash(items) {
 
 // Groq-powered signal analysis (free tier — moonshotai/kimi-k2-instruct)
 async function computeSignal(items, market) {
-  if (!DEEPSEEK_API_KEY) {
-    throw new Error("DEEPSEEK_API_KEY is not set in .env or GitHub Secrets.");
+  if (!GROQ_API_KEY) {
+    throw new Error("GROQ_API_KEY is not set in .env or GitHub Secrets.");
   }
 
   const newsHash = computeNewsHash(items);
@@ -257,16 +257,16 @@ Respond with a JSON object in this exact format (no markdown, no extra text):
 {"signal":"BUY","netScore":42,"reasoning":"one sentence"}`;
 
   const res = await axios.post(
-    "https://api.deepseek.com/chat/completions",
+    "https://api.groq.com/openai/v1/chat/completions",
     {
-      model: "deepseek-chat",
+      model: "moonshotai/kimi-k2-instruct",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 256,
       temperature: 0.2,
     },
     {
       headers: {
-        Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
+        Authorization: `Bearer ${GROQ_API_KEY}`,
         "Content-Type": "application/json",
       },
       timeout: 20000,
@@ -279,7 +279,7 @@ Respond with a JSON object in this exact format (no markdown, no extra text):
   const signal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
   const netScore = typeof parsed.netScore === "number" ? parsed.netScore : 0;
 
-  console.log(`  ${C.dim}DeepSeek reasoning: ${parsed.reasoning}${C.reset}\n`);
+  console.log(`  ${C.dim}Kimi reasoning: ${parsed.reasoning}${C.reset}\n`);
   return { signal, netScore, newsHash };
 }
 
@@ -344,7 +344,7 @@ function printMarket(market) {
 
 function printSignal(signal, netScore) {
   const sigColor = signal === "BUY" ? C.green : signal === "SELL" ? C.red : C.yellow;
-  console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${col(C.dim, " (via DeepSeek V3)")}${C.reset}`);
+  console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${col(C.dim, " (via Groq/Kimi-K2)")}${C.reset}`);
   console.log(`  Net score : ${netScore >= 0 ? "+" : ""}${netScore}\n`);
 }
 
