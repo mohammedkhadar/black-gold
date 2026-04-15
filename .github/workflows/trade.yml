@@ -10,10 +10,6 @@ on:
         description: "Number of shares to buy"
         required: false
         default: "1"
-      cooldown:
-        description: "Minimum minutes between orders"
-        required: false
-        default: "60"
       execute:
         description: "Actually place the order (true/false)"
         required: false
@@ -59,11 +55,10 @@ jobs:
           NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
         run: |
           QUANTITY="${{ github.event.inputs.quantity || '1' }}"
-          COOLDOWN="${{ github.event.inputs.cooldown || '60' }}"
           EXECUTE="${{ github.event.inputs.execute || 'true' }}"
 
           if [ "$EXECUTE" = "true" ]; then
-            node brent_crude_signals.js --execute --quantity "$QUANTITY" --cooldown "$COOLDOWN" --auto-confirm
+            node brent_crude_signals.js --execute --quantity "$QUANTITY" --auto-confirm
           else
             node brent_crude_signals.js --quantity "$QUANTITY"
           fi
