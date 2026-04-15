@@ -17,7 +17,6 @@ import axios from "axios";
 import RssParser from "rss-parser";
 import yahooFinance from "yahoo-finance2";
 import { createHash } from "node:crypto";
-import Anthropic from "@anthropic-ai/sdk";
 
 // yahoo-finance2 v2 exports the class as default; create one instance.
 // Falls back to Stooq CSV if Yahoo rate-limits (429).
@@ -34,7 +33,7 @@ import readline from "node:readline";
 const T212_API_KEY      = process.env.T212_API_KEY;
 const T212_API_SECRET   = process.env.T212_SECRET_KEY;
 const NEWS_API_KEY      = process.env.NEWS_API_KEY;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const GROQ_API_KEY      = process.env.GROQ_API_KEY;
 
 const T212_BASE       = "https://demo.trading212.com/api/v0";
 
@@ -285,8 +284,8 @@ function computeSignalKeywords(items, market, bullishThreshold = 3, bearishThres
   return { signal, netScore, relevant, newsHash, source: "keywords" };
 }
 
-// Claude-powered signal analysis
-async function computeSignalClaude(items, market) {
+// Groq-powered signal analysis (free tier — llama-3.3-70b-versatile)
+async function computeSignalGroq(items, market) {
   const relevant = items.filter((i) => i.score !== 0);
   const newsHash = computeNewsHash(relevant);
 
@@ -308,30 +307,40 @@ Latest headlines:
 ${headlines}
 
 Respond with a JSON object in this exact format (no markdown, no extra text):
-{"signal":"BUY"|"HOLD"|"SELL","netScore":<integer -100 to 100>,"reasoning":"<one sentence>"}`;
+{"signal":"BUY","netScore":42,"reasoning":"one sentence"}`;
 
-  const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
-  const message = await client.messages.create({
-    model: "claude-opus-4-5",
-    max_tokens: 256,
-    messages: [{ role: "user", content: prompt }],
-  });
+  const res = await axios.post(
+    "https://api.groq.com/openai/v1/chat/completions",
+    {
+      model: "llama-3.3-70b-versatile",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 256,
+      temperature: 0.2,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 20000,
+    }
+  );
 
-  const raw = message.content[0]?.text?.trim() ?? "";
+  const raw = res.data.choices[0]?.message?.content?.trim() ?? "";
   const parsed = JSON.parse(raw);
   const signal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
   const netScore = typeof parsed.netScore === "number" ? parsed.netScore : 0;
 
-  console.log(`  ${C.dim}Claude reasoning: ${parsed.reasoning}${C.reset}\n`);
-  return { signal, netScore, relevant, newsHash, source: "claude" };
+  console.log(`  ${C.dim}Groq reasoning: ${parsed.reasoning}${C.reset}\n`);
+  return { signal, netScore, relevant, newsHash, source: "groq" };
 }
 
 async function computeSignal(items, market) {
-  if (ANTHROPIC_API_KEY) {
+  if (GROQ_API_KEY) {
     try {
-      return await computeSignalClaude(items, market);
+      return await computeSignalGroq(items, market);
     } catch (err) {
-      console.warn(`[WARN] Claude API error (${err.message}) — falling back to keyword analysis.`);
+      console.warn(`[WARN] Groq API error (${err.message}) — falling back to keyword analysis.`);
     }
   }
   return computeSignalKeywords(items, market);
@@ -398,7 +407,7 @@ function printMarket(market) {
 
 function printSignal(signal, netScore, source) {
   const sigColor = signal === "BUY" ? C.green : signal === "SELL" ? C.red : C.yellow;
-  const srcLabel = source === "claude" ? col(C.dim, " (via Claude)") : col(C.dim, " (keyword fallback)");
+  const srcLabel = source === "groq" ? col(C.dim, " (via Groq/Llama)") : col(C.dim, " (keyword fallback)");
   console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${srcLabel}${C.reset}`);
   console.log(`  Net score : ${netScore >= 0 ? "+" : ""}${netScore}\n`);
 }
