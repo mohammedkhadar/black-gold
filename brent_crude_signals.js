@@ -2,9 +2,8 @@
  * Brent Crude Geopolitical Trading Signal Analyzer + Trading 212 Executor
  * -------------------------------------------------------------------------
  * 1. Pulls geopolitical headlines from RSS feeds (+ NewsAPI if key supplied).
- * 2. Scores them against bullish / bearish oil keywords.
- * 3. Generates a BUY / HOLD / SELL signal for Brent crude.
- * 4. Optionally submits market orders via the Trading 212 Paper Trading API.
+ * 2. Uses Groq AI to generate a BUY / HOLD / SELL signal for Brent crude.
+ * 3. Optionally submits market orders via the Trading 212 Paper Trading API.
  *
  * SETUP
  *   Fill in .env with T212_API_KEY, T212_SECRET_KEY, NEWS_API_KEY (optional)
@@ -82,10 +81,6 @@ class Trading212Client {
     return this._get("/equity/account/cash");
   }
 
-  async getPortfolio() {
-    return this._get("/equity/portfolio");
-  }
-
   async getPosition(ticker) {
     try {
       return await this._get(`/equity/portfolio/${ticker}`);
@@ -131,10 +126,8 @@ async function fetchRssNews(maxPerFeed = 10) {
       const source = feed.title || url;
       for (const entry of feed.items.slice(0, maxPerFeed)) {
         items.push({
-          title:     entry.title || "",
-          summary:   entry.contentSnippet || entry.content || "",
+          title:  entry.title || "",
           source,
-          published: entry.pubDate || "",
         });
       }
     } catch (err) {
@@ -152,10 +145,8 @@ async function fetchNewsApiNews(query = "oil brent crude geopolitical") {
       timeout: 10000,
     });
     return res.data.articles.map((a) => ({
-      title:     a.title || "",
-      summary:   a.description || "",
-      source:    a.source?.name || "NewsAPI",
-      published: a.publishedAt || "",
+      title:  a.title || "",
+      source: a.source?.name || "NewsAPI",
     }));
   } catch (err) {
     console.warn(`[WARN] NewsAPI error: ${err.message}`);
