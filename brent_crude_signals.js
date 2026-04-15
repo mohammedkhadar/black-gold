@@ -218,6 +218,77 @@ async function fetchMarketData() {
 }
 
 // ---------------------------------------------------------------------------
+// Market data — multi-day history for momentum
+// ---------------------------------------------------------------------------
+
+async function fetchPriceHistory(days = 14) {
+  // Stooq daily history: returns newest-first CSV rows
+  try {
+    const res = await axios.get(
+      `https://stooq.com/q/d/l/?s=cb.f&i=d`,
+      { timeout: 12000 }
+    );
+    const lines = res.data.trim().split("\n").filter((l) => l.trim());
+    // header: Date,Open,High,Low,Close,Volume
+    const closes = [];
+    for (let i = lines.length - 1; i >= 1 && closes.length < days; i--) {
+      const cols = lines[i].split(",");
+      const c = parseFloat(cols[4]);
+      if (c > 0) closes.unshift(c); // oldest first
+    }
+    return closes;
+  } catch (err) {
+    console.warn(`[WARN] Could not fetch price history: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * Momentum score in range [-100, +100].
+ * Combines:
+ *  - Intraday change (±40 pts, scaled ±5% → full weight)
+ *  - Position within day range (±20 pts)
+ *  - 14-day RSI (±40 pts, RSI 70→+40, RSI 30→-40, 50→0)
+ */
+function computeMomentum(market, history) {
+  if (!market) return { momentumScore: 0, rsi: null };
+
+  // 1. Intraday change score
+  const changePct = market.changePct ?? 0;
+  const intradayScore = Math.max(-40, Math.min(40, (changePct / 5) * 40));
+
+  // 2. Price position within day's range (closer to high = bullish)
+  let rangeScore = 0;
+  const range = (market.dayHigh ?? 0) - (market.dayLow ?? 0);
+  if (range > 0) {
+    const pos = (market.price - market.dayLow) / range; // 0=at low, 1=at high
+    rangeScore = (pos - 0.5) * 40; // ±20
+  }
+
+  // 3. RSI(14) from close history
+  let rsi = null;
+  let rsiScore = 0;
+  if (history.length >= 2) {
+    const closes = history.slice(-15);
+    let gains = 0, losses = 0;
+    for (let i = 1; i < closes.length; i++) {
+      const diff = closes[i] - closes[i - 1];
+      if (diff >= 0) gains += diff;
+      else losses += Math.abs(diff);
+    }
+    const n = closes.length - 1;
+    const avgGain = gains / n;
+    const avgLoss = losses / n;
+    rsi = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+    // RSI 70 → +40, RSI 30 → -40, RSI 50 → 0 (linear)
+    rsiScore = Math.max(-40, Math.min(40, (rsi - 50) * (40 / 20)));
+  }
+
+  const momentumScore = Math.round(intradayScore + rangeScore + rsiScore);
+  return { momentumScore, rsi };
+}
+
+// ---------------------------------------------------------------------------
 // Signal analysis
 // ---------------------------------------------------------------------------
 
@@ -230,7 +301,7 @@ function computeNewsHash(items) {
 }
 
 // Nemotron signal analysis via OpenRouter
-async function computeSignal(items, market) {
+async function computeSignal(items, market, history) {
   if (!OPENROUTER_API_KEY) {
     throw new Error("OPENROUTER_API_KEY is not set in .env or GitHub Secrets.");
   }
@@ -310,11 +381,18 @@ Your JSON response:`;
       };
     }
   }
-  const signal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
-  const netScore = typeof parsed.netScore === "number" ? parsed.netScore : 0;
+  const aiSignal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
+  const aiScore  = typeof parsed.netScore === "number" ? parsed.netScore : 0;
 
-  console.log(`  ${C.dim}Nemotron reasoning: ${parsed.reasoning}${C.reset}\n`);
-  return { signal, netScore, newsHash };
+  // Blend AI score (70%) with momentum score (30%)
+  const { momentumScore, rsi } = computeMomentum(market, history);
+  const blendedScore = Math.round(aiScore * 0.7 + momentumScore * 0.3);
+  const signal = blendedScore > 15 ? "BUY" : blendedScore < -15 ? "SELL" : "HOLD";
+
+  console.log(`  ${C.dim}Nemotron reasoning: ${parsed.reasoning}${C.reset}`);
+  const rsiStr = rsi !== null ? `RSI ${rsi.toFixed(1)}` : "RSI n/a";
+  console.log(`  ${C.dim}Momentum score: ${momentumScore >= 0 ? "+" : ""}${momentumScore}  (${rsiStr})  →  AI ${aiScore >= 0 ? "+" : ""}${aiScore}  →  Blended ${blendedScore >= 0 ? "+" : ""}${blendedScore}${C.reset}\n`);
+  return { signal, netScore: blendedScore, aiScore, momentumScore, rsi, newsHash };
 }
 
 // ---------------------------------------------------------------------------
@@ -512,7 +590,10 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
 
   console.log(`[INFO] Fetched ${items.length} articles …`);
 
-  const { signal, netScore, newsHash } = await computeSignal(items, market);
+  console.log("[INFO] Fetching price history for momentum …");
+  const history = await fetchPriceHistory(14);
+
+  const { signal, netScore, aiScore, momentumScore, rsi, newsHash } = await computeSignal(items, market, history);
 
   printMarket(market);
   printSignal(signal, netScore);
@@ -542,6 +623,9 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
     timestamp:  new Date().toISOString(),
     signal,
     netScore,
+    aiScore,
+    momentumScore,
+    rsi: rsi !== null ? parseFloat(rsi.toFixed(1)) : null,
     newsHash,
     price:      market?.price ?? null,
     changePct:  market ? parseFloat(market.changePct.toFixed(2)) : null,
