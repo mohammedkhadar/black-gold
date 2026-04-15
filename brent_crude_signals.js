@@ -82,7 +82,7 @@ const col = (c, s) => `${c}${s}${C.reset}`;
 class Trading212Client {
   constructor(apiKey, apiSecret) {
     if (!apiKey || !apiSecret) {
-      throw new Error("T212_API_KEY and T212_SECRET_KEY must both be set in .env.");
+      throw new Error("T212_API_KEY and T212_SECRET_KEY must be set in .env (local) or as GitHub Secrets (CI).");
     }
     this.base = T212_BASE;
     this.mode = "PAPER";
@@ -540,7 +540,7 @@ const opts = program.opts();
 
   if (opts.execute || opts.searchInstruments) {
     if (!T212_API_KEY || !T212_API_SECRET) {
-      console.error("ERROR: T212_API_KEY and T212_SECRET_KEY must both be set in .env.");
+      console.error("ERROR: T212_API_KEY and T212_SECRET_KEY must be set in .env (local) or as GitHub Secrets (CI).");
       process.exit(1);
     }
     client = new Trading212Client(T212_API_KEY, T212_API_SECRET);
