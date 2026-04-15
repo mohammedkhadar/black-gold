@@ -17,6 +17,7 @@ import axios from "axios";
 import RssParser from "rss-parser";
 import yahooFinance from "yahoo-finance2";
 import { createHash } from "node:crypto";
+import Anthropic from "@anthropic-ai/sdk";
 
 // yahoo-finance2 v2 exports the class as default; create one instance.
 // Falls back to Stooq CSV if Yahoo rate-limits (429).
@@ -30,9 +31,10 @@ import readline from "node:readline";
 // Configuration
 // ---------------------------------------------------------------------------
 
-const T212_API_KEY    = process.env.T212_API_KEY;
-const T212_API_SECRET = process.env.T212_SECRET_KEY;
-const NEWS_API_KEY    = process.env.NEWS_API_KEY;
+const T212_API_KEY      = process.env.T212_API_KEY;
+const T212_API_SECRET   = process.env.T212_SECRET_KEY;
+const NEWS_API_KEY      = process.env.NEWS_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 const T212_BASE       = "https://demo.trading212.com/api/v0";
 
@@ -268,21 +270,71 @@ function computeNewsHash(relevant) {
   return createHash("sha1").update(content).digest("hex").slice(0, 12);
 }
 
-function computeSignal(items, market, bullishThreshold = 3, bearishThreshold = -3) {
+// Keyword-based fallback signal (no Claude)
+function computeSignalKeywords(items, market, bullishThreshold = 3, bearishThreshold = -3) {
   const relevant = items.filter((i) => i.score !== 0);
   let netScore = relevant.reduce((sum, i) => sum + i.score, 0);
-
   if (market) {
     if (market.changePct > 1.5)  netScore += 1;
     if (market.changePct < -1.5) netScore -= 1;
   }
-
   const signal =
     netScore >= bullishThreshold ? "BUY" :
     netScore <= bearishThreshold ? "SELL" : "HOLD";
-
   const newsHash = computeNewsHash(relevant);
-  return { signal, netScore, relevant, newsHash };
+  return { signal, netScore, relevant, newsHash, source: "keywords" };
+}
+
+// Claude-powered signal analysis
+async function computeSignalClaude(items, market) {
+  const relevant = items.filter((i) => i.score !== 0);
+  const newsHash = computeNewsHash(relevant);
+
+  const headlines = [...items]
+    .sort((a, b) => Math.abs(b.score) - Math.abs(a.score))
+    .slice(0, 25)
+    .map((i) => `- ${i.title} [${i.source}]`)
+    .join("\n");
+
+  const priceContext = market
+    ? `Current Brent crude price: $${market.price.toFixed(2)} (${market.changePct >= 0 ? "+" : ""}${market.changePct.toFixed(2)}% today).`
+    : "Current Brent crude price: unavailable.";
+
+  const prompt = `You are an expert oil market analyst. Based on the latest geopolitical news headlines and current price action, determine whether to BUY, HOLD, or SELL Brent crude right now.
+
+${priceContext}
+
+Latest headlines:
+${headlines}
+
+Respond with a JSON object in this exact format (no markdown, no extra text):
+{"signal":"BUY"|"HOLD"|"SELL","netScore":<integer -100 to 100>,"reasoning":"<one sentence>"}`;
+
+  const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+  const message = await client.messages.create({
+    model: "claude-opus-4-5",
+    max_tokens: 256,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  const raw = message.content[0]?.text?.trim() ?? "";
+  const parsed = JSON.parse(raw);
+  const signal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
+  const netScore = typeof parsed.netScore === "number" ? parsed.netScore : 0;
+
+  console.log(`  ${C.dim}Claude reasoning: ${parsed.reasoning}${C.reset}\n`);
+  return { signal, netScore, relevant, newsHash, source: "claude" };
+}
+
+async function computeSignal(items, market) {
+  if (ANTHROPIC_API_KEY) {
+    try {
+      return await computeSignalClaude(items, market);
+    } catch (err) {
+      console.warn(`[WARN] Claude API error (${err.message}) — falling back to keyword analysis.`);
+    }
+  }
+  return computeSignalKeywords(items, market);
 }
 
 // ---------------------------------------------------------------------------
@@ -344,10 +396,11 @@ function printMarket(market) {
   console.log(`  Volume : ${market.volume.toLocaleString()}\n`);
 }
 
-function printSignal(signal, netScore) {
+function printSignal(signal, netScore, source) {
   const sigColor = signal === "BUY" ? C.green : signal === "SELL" ? C.red : C.yellow;
-  console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${C.reset}`);
-  console.log(`  Net score : ${netScore >= 0 ? "+" : ""}${netScore}  (positive = supply disruption, negative = demand destruction)\n`);
+  const srcLabel = source === "claude" ? col(C.dim, " (via Claude)") : col(C.dim, " (keyword fallback)");
+  console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${srcLabel}${C.reset}`);
+  console.log(`  Net score : ${netScore >= 0 ? "+" : ""}${netScore}\n`);
 }
 
 function printTopItems(items, topN = 10) {
@@ -486,10 +539,10 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
   console.log(`[INFO] Analysing ${items.length} articles …`);
   analyseNews(items);
 
-  const { signal, netScore, relevant, newsHash } = computeSignal(items, market);
+  const { signal, netScore, relevant, newsHash, source } = await computeSignal(items, market);
 
   printMarket(market);
-  printSignal(signal, netScore);
+  printSignal(signal, netScore, source);
   printTopItems(relevant);
 
   let orderResult = null;

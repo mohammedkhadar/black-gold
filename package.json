@@ -12,6 +12,7 @@
     "search": "node brent_crude_signals.js --search-instruments brent"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.89.0",
     "axios": "^1.7.9",
     "commander": "^12.1.0",
     "dotenv": "^16.4.7",
