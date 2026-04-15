@@ -32,6 +32,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify secrets
+        run: |
+          if [ -z "$T212_API_KEY" ]; then echo "ERROR: T212_API_KEY secret is missing or empty" && exit 1; fi
+          if [ -z "$T212_SECRET_KEY" ]; then echo "ERROR: T212_SECRET_KEY secret is missing or empty" && exit 1; fi
+          echo "Secrets verified OK"
+        env:
+          T212_API_KEY: ${{ secrets.T212_API_KEY }}
+          T212_SECRET_KEY: ${{ secrets.T212_SECRET_KEY }}
+
       - name: Run signal and trade
         env:
           T212_API_KEY: ${{ secrets.T212_API_KEY }}
