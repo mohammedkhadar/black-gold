@@ -259,21 +259,25 @@ Respond with a JSON object in this exact format (no markdown, no extra text):
   const res = await axios.post(
     "https://api.deepseek.com/chat/completions",
     {
-      model: "deepseek-chat",
+      model: "deepseek-reasoner",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 256,
-      temperature: 0.2,
+      max_tokens: 1024,
+      temperature: 1,
     },
     {
       headers: {
         Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
         "Content-Type": "application/json",
       },
-      timeout: 20000,
+      timeout: 60000,
     }
   );
 
-  const raw = res.data.choices[0]?.message?.content?.trim() ?? "";
+  const msg = res.data.choices[0]?.message;
+  if (msg?.reasoning_content) {
+    console.log(`  ${C.dim}Reasoning: ${msg.reasoning_content.slice(0, 200).replace(/\n/g, " ")}…${C.reset}\n`);
+  }
+  const raw = msg?.content?.trim() ?? "";
   const parsed = JSON.parse(raw);
   const signal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
   const netScore = typeof parsed.netScore === "number" ? parsed.netScore : 0;
@@ -343,7 +347,7 @@ function printMarket(market) {
 
 function printSignal(signal, netScore) {
   const sigColor = signal === "BUY" ? C.green : signal === "SELL" ? C.red : C.yellow;
-  console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${col(C.dim, " (via DeepSeek)")}${C.reset}`);
+  console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${col(C.dim, " (via DeepSeek R1)")}${C.reset}`);
   console.log(`  Net score : ${netScore >= 0 ? "+" : ""}${netScore}\n`);
 }
 
