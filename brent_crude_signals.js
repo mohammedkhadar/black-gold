@@ -16,6 +16,7 @@ import "dotenv/config";
 import axios from "axios";
 import RssParser from "rss-parser";
 import yahooFinance from "yahoo-finance2";
+import { createHash } from "node:crypto";
 
 // yahoo-finance2 v2 exports the class as default; create one instance.
 // Falls back to Stooq CSV if Yahoo rate-limits (429).
@@ -259,6 +260,14 @@ function analyseNews(items) {
   return items;
 }
 
+function computeNewsHash(relevant) {
+  const content = relevant
+    .map((i) => `${i.title}|${i.score}`)
+    .sort()
+    .join("\n");
+  return createHash("sha1").update(content).digest("hex").slice(0, 12);
+}
+
 function computeSignal(items, market, bullishThreshold = 3, bearishThreshold = -3) {
   const relevant = items.filter((i) => i.score !== 0);
   let netScore = relevant.reduce((sum, i) => sum + i.score, 0);
@@ -272,7 +281,8 @@ function computeSignal(items, market, bullishThreshold = 3, bearishThreshold = -
     netScore >= bullishThreshold ? "BUY" :
     netScore <= bearishThreshold ? "SELL" : "HOLD";
 
-  return { signal, netScore, relevant };
+  const newsHash = computeNewsHash(relevant);
+  return { signal, netScore, relevant, newsHash };
 }
 
 // ---------------------------------------------------------------------------
@@ -476,7 +486,7 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
   console.log(`[INFO] Analysing ${items.length} articles …`);
   analyseNews(items);
 
-  const { signal, netScore, relevant } = computeSignal(items, market);
+  const { signal, netScore, relevant, newsHash } = computeSignal(items, market);
 
   printMarket(market);
   printSignal(signal, netScore);
@@ -484,16 +494,29 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
 
   let orderResult = null;
   if (execute && client) {
-    orderResult = await executeSignal(client, signal, ticker, orderQty, autoConfirm);
+    // Skip order if news hasn't changed since last order
+    let lastNewsHash = null;
+    try {
+      const { readFile } = await import("node:fs/promises");
+      const last = JSON.parse(await readFile("last_signal.json", "utf8"));
+      if (last.order) lastNewsHash = last.newsHash ?? null;
+    } catch (_) { /* no last_signal.json yet */ }
+
+    if (lastNewsHash && lastNewsHash === newsHash) {
+      console.log(`[INFO] News unchanged (hash: ${newsHash}) — skipping order.`);
+    } else {
+      if (lastNewsHash) console.log(`[INFO] News changed (${lastNewsHash} → ${newsHash}) — proceeding.`);
+      orderResult = await executeSignal(client, signal, ticker, orderQty, autoConfirm);
+    }
   }
 
   printDisclaimer();
 
-  // Always persist state so cooldown survives across runs (including GitHub Actions)
   const output = {
     timestamp:  new Date().toISOString(),
     signal,
     netScore,
+    newsHash,
     price:      market?.price ?? null,
     changePct:  market ? parseFloat(market.changePct.toFixed(2)) : null,
     order:      orderResult,
