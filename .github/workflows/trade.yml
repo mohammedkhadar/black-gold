@@ -2,10 +2,8 @@ name: Brent Crude Signal & Trade
 
 on:
   schedule:
-    # Runs every day at 08:00 UTC (market open London time)
-    - cron: "0 8 * * 1-5"
-    # Runs every day at 14:00 UTC (afternoon check)
-    - cron: "0 14 * * 1-5"
+    # Every 5 minutes Mon–Fri (GitHub Actions minimum interval)
+    - cron: "*/5 * * * 1-5"
   workflow_dispatch:
     inputs:
       quantity:
