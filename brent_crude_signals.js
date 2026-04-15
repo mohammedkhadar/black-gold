@@ -259,7 +259,7 @@ Respond with a JSON object in this exact format (no markdown, no extra text):
   const res = await axios.post(
     "https://api.groq.com/openai/v1/chat/completions",
     {
-      model: "openai/gpt-oss-120b",
+      model: "moonshotai/kimi-k2-instruct",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 256,
       temperature: 0.2,
@@ -279,7 +279,7 @@ Respond with a JSON object in this exact format (no markdown, no extra text):
   const signal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
   const netScore = typeof parsed.netScore === "number" ? parsed.netScore : 0;
 
-  console.log(`  ${C.dim}GPT-OSS reasoning: ${parsed.reasoning}${C.reset}\n`);
+  console.log(`  ${C.dim}Kimi reasoning: ${parsed.reasoning}${C.reset}\n`);
   return { signal, netScore, newsHash };
 }
 
@@ -344,7 +344,7 @@ function printMarket(market) {
 
 function printSignal(signal, netScore) {
   const sigColor = signal === "BUY" ? C.green : signal === "SELL" ? C.red : C.yellow;
-  console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${col(C.dim, " (via Groq/GPT-OSS-120B)")}${C.reset}`);
+  console.log(`  ${C.bold}Signal    : ${col(sigColor, signal)}${col(C.dim, " (via Groq/Kimi-K2)")}${C.reset}`);
   console.log(`  Net score : ${netScore >= 0 ? "+" : ""}${netScore}\n`);
 }
 
