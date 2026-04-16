@@ -456,7 +456,7 @@ Your JSON response:`;
   const rsiStr = rsi !== null ? `RSI ${rsi.toFixed(1)}` : "RSI n/a";
   console.log(`  ${C.dim}Momentum score: ${momentumScore >= 0 ? "+" : ""}${momentumScore}  (${rsiStr})  →  AI ${aiScore >= 0 ? "+" : ""}${aiScore}  →  Blended ${blendedScore >= 0 ? "+" : ""}${blendedScore}${C.reset}\n`);
 
-  return { signal, netScore: blendedScore, aiScore, momentumScore, rsi, newsHash };
+  return { signal, netScore: blendedScore, aiScore, momentumScore, rsi, newsHash, reasoning: parsed.reasoning ?? "" };
 }
 
 // ---------------------------------------------------------------------------
@@ -686,7 +686,7 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
   console.log("[INFO] Fetching BTC price history for momentum …");
   const history = await fetchPriceHistory(14);
 
-  const { signal, netScore, aiScore, momentumScore, rsi, newsHash } = await computeSignal(items, market, history);
+  const { signal, netScore, aiScore, momentumScore, rsi, newsHash, reasoning } = await computeSignal(items, market, history);
 
   printMarket(market);
   printSignal(signal, netScore);
@@ -699,6 +699,7 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
     await sendTelegram(
       `${emoji} <b>Bitcoin ${signal}</b>${priceStr}\n` +
       `Score: ${netScore >= 0 ? "+" : ""}${netScore}  (AI ${aiScore >= 0 ? "+" : ""}${aiScore} / Mom ${momentumScore >= 0 ? "+" : ""}${momentumScore})\n` +
+      `${reasoning ? `Reasoning: ${reasoning}\n` : ""}` +
       `Time: ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`
     );
   }
