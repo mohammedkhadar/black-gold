@@ -767,5 +767,6 @@ const opts = program.opts();
     if (opts.json) {
       console.log(JSON.stringify(result, null, 2));
     }
+    process.exit(0);
   }
 })();
