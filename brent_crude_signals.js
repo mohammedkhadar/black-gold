@@ -61,7 +61,7 @@ const RSS_FEEDS = [
   "https://news.google.com/rss/search?q=oil+OPEC+geopolitical&hl=en-US&gl=US&ceid=US:en",
   // Iranian perspective — directly relevant for Hormuz/sanctions/supply risk
   //"https://www.presstv.ir/rss.xml",   // Press TV (Iran state English broadcaster)
-  "https://en.irna.ir/rss",           // IRNA (Islamic Republic News Agency)
+  //"https://en.irna.ir/rss",           // IRNA (Islamic Republic News Agency)
 ];
 
 // ---------------------------------------------------------------------------
@@ -710,6 +710,11 @@ async function executeSignal(client, signal, ticker, orderQty, autoConfirm = fal
   } catch (err) {
     const msg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
     console.error(`[ERROR] Order failed [${err.response?.status}]: ${msg}`);
+    await sendTelegram(
+      `❌ <b>Order failed</b> — ${client.mode}\n` +
+      `Ticker: <code>${ticker}</code>  Signal: ${signal}\n` +
+      `Error [${err.response?.status ?? "?"}]: ${msg.slice(0, 200)}`
+    );
     return null;
   }
 }

@@ -692,6 +692,11 @@ async function executeSignal(client, signal, ticker, orderQty, autoConfirm = fal
   } catch (err) {
     const msg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
     console.error(`[ERROR] Order failed [${err.response?.status}]: ${msg}`);
+    await sendTelegram(
+      `❌ <b>Order failed</b> — ${client.mode}\n` +
+      `Ticker: <code>${ticker}</code>  Signal: ${signal}\n` +
+      `Error [${err.response?.status ?? "?"}]: ${msg.slice(0, 200)}`
+    );
     return null;
   }
 }
