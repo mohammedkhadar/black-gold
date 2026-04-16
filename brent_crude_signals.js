@@ -47,7 +47,7 @@ const RSS_FEEDS = [
   "https://news.google.com/rss/search?q=brent+crude+oil&hl=en-US&gl=US&ceid=US:en",
   "https://news.google.com/rss/search?q=oil+OPEC+geopolitical&hl=en-US&gl=US&ceid=US:en",
   // Iranian perspective — directly relevant for Hormuz/sanctions/supply risk
-  "https://www.presstv.ir/rss.xml",   // Press TV (Iran state English broadcaster)
+  //"https://www.presstv.ir/rss.xml",   // Press TV (Iran state English broadcaster)
   "https://en.irna.ir/rss",           // IRNA (Islamic Republic News Agency)
 ];
 
@@ -459,9 +459,9 @@ Your JSON response:`;
   const aiSignal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
   const aiScore  = typeof parsed.netScore === "number" ? parsed.netScore : 0;
 
-  // Blend AI score (70%) with momentum score (30%)
+  // Blend AI score (50%) with momentum score (50%)
   const { momentumScore, rsi } = computeMomentum(market, history);
-  const blendedScore = Math.round(aiScore * 0.7 + momentumScore * 0.3);
+  const blendedScore = Math.round(aiScore * 0.5 + momentumScore * 0.5);
   const signal = blendedScore > 15 ? "BUY" : blendedScore < -15 ? "SELL" : "HOLD";
 
   console.log(`  ${C.dim}Nemotron reasoning: ${parsed.reasoning}${C.reset}`);
