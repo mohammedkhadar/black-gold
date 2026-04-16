@@ -25,7 +25,6 @@ export interface MomentumResult {
 export interface AIResult {
   aiSignal: string;
   aiScore: number;
-  buyProb: number;
   reasoning: string;
   aiAvailable: boolean;
 }
@@ -36,7 +35,6 @@ export interface SignalResult {
   signal: Signal;
   netScore: number;
   aiScore: number;
-  buyProb: number;
   momentumScore: number;
   rsi: number | null;
   newsHash: string;

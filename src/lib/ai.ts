@@ -10,7 +10,6 @@ const GROQ_MODEL = "openai/gpt-oss-120b"; // attempt 3 — Groq (separate infras
 interface ParsedAIResponse {
   signal?: unknown;
   netScore?: unknown;
-  buyProb?: unknown;
   reasoning?: unknown;
 }
 
@@ -110,7 +109,6 @@ export async function callAI(
   return {
     aiSignal:    ["BUY", "HOLD", "SELL"].includes(signal) ? signal : "HOLD",
     aiScore:     typeof parsed.netScore === "number" ? parsed.netScore : 0,
-    buyProb:     typeof parsed.buyProb  === "number" ? Math.min(100, Math.max(0, Math.round(parsed.buyProb))) : 0,
     reasoning,
     aiAvailable,
   };

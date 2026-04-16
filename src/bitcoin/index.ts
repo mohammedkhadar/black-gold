@@ -48,14 +48,13 @@ OUTPUT RULES — CRITICAL:
 - Your ENTIRE response must be one single JSON object.
 - Do NOT include any text, explanation, thinking, or markdown before or after the JSON.
 - Do NOT wrap in code fences.
-- The JSON must have exactly these four keys: signal, netScore, buyProb, reasoning.
+- The JSON must have exactly these three keys: signal, netScore, reasoning.
 - signal: exactly one of "BUY", "HOLD", or "SELL" (uppercase string).
 - netScore: integer between -100 and 100.
-- buyProb: integer 0–100. Your estimated probability that price will rise ≥3% within the next 30 minutes. Set to 0 if signal is HOLD or SELL.
 - reasoning: one sentence string explaining the signal.
 
 Example of the ONLY acceptable output format:
-{"signal":"BUY","netScore":55,"buyProb":65,"reasoning":"ETF inflows accelerating amid dovish Fed expectations."}
+{"signal":"BUY","netScore":55,"reasoning":"ETF inflows accelerating amid dovish Fed expectations."}
 
 ${priceCtx}
 
@@ -64,18 +63,16 @@ ${headlines}
 
 Your JSON response:`;
 
-  const { aiScore, buyProb, reasoning, aiAvailable } = await callAI(prompt, OPENROUTER_API_KEY, GROQ_API_KEY);
+  const { aiScore, reasoning, aiAvailable } = await callAI(prompt, OPENROUTER_API_KEY, GROQ_API_KEY);
   const { momentumScore, rsi } = computeMomentum(market, history);
   const blendedScore = Math.round(aiScore * AI_BLEND.ai + momentumScore * AI_BLEND.momentum);
-  const rawSignal: Signal = !aiAvailable ? "HOLD" : blendedScore > 15 ? "BUY" : blendedScore < -15 ? "SELL" : "HOLD";
-  const signal: Signal = rawSignal === "BUY" && buyProb <= 50 ? "HOLD" : rawSignal;
+  const signal: Signal = !aiAvailable ? "HOLD" : blendedScore > 15 ? "BUY" : blendedScore < -15 ? "SELL" : "HOLD";
 
   console.log(`  ${C.dim}Nemotron reasoning: ${reasoning}${C.reset}`);
   const rsiStr = rsi !== null ? `RSI ${rsi.toFixed(1)}` : "RSI n/a";
-  const buyProbStr = rawSignal === "BUY" ? `  buy-prob ${buyProb}%${buyProb <= 50 ? " → suppressed" : ""}` : "";
-  console.log(`  ${C.dim}Momentum score: ${momentumScore >= 0 ? "+" : ""}${momentumScore}  (${rsiStr})  →  AI ${aiScore >= 0 ? "+" : ""}${aiScore}  →  Blended ${blendedScore >= 0 ? "+" : ""}${blendedScore}${buyProbStr}${C.reset}\n`);
+  console.log(`  ${C.dim}Momentum score: ${momentumScore >= 0 ? "+" : ""}${momentumScore}  (${rsiStr})  →  AI ${aiScore >= 0 ? "+" : ""}${aiScore}  →  Blended ${blendedScore >= 0 ? "+" : ""}${blendedScore}${C.reset}\n`);
 
-  return { signal, netScore: blendedScore, aiScore, buyProb, momentumScore, rsi, newsHash, reasoning };
+  return { signal, netScore: blendedScore, aiScore, momentumScore, rsi, newsHash, reasoning };
 }
 
 function printHeader(mode: string): void {
@@ -120,7 +117,7 @@ export async function runOnce(
   console.log("[INFO] Fetching BTC price history for momentum …");
   const history = await fetchPriceHistory(14);
 
-  let { signal, netScore, aiScore, buyProb, momentumScore, rsi, newsHash, reasoning } = await computeSignal(items, market, history);
+  let { signal, netScore, aiScore, momentumScore, rsi, newsHash, reasoning } = await computeSignal(items, market, history);
 
   printMarketData(market, "Bitcoin", (p) => p.toLocaleString("en-US", { maximumFractionDigits: 0 }));
   printSignal(signal, netScore);
@@ -176,7 +173,7 @@ export async function runOnce(
 
   const output: Record<string, unknown> = {
     timestamp:  new Date().toISOString(),
-    signal, netScore, aiScore, buyProb, momentumScore,
+    signal, netScore, aiScore, momentumScore,
     rsi:       rsi !== null ? parseFloat(rsi.toFixed(1)) : null,
     newsHash,
     price:     market?.price ?? null,
