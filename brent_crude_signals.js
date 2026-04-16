@@ -368,10 +368,9 @@ async function computeSignal(items, market, history) {
   const newsHash = computeNewsHash(items);
 
   const headlines = items
-    .slice(0, 25)
     .map((i) => `- ${i.title} [${i.source}]`)
     .join("\n");
-
+ 
   const priceContext = market
     ? `Current Brent crude price: $${market.price.toFixed(2)} (${market.changePct >= 0 ? "+" : ""}${market.changePct.toFixed(2)}% today).`
     : "Current Brent crude price: unavailable.";
@@ -399,47 +398,61 @@ ${headlines}
 
 Your JSON response:`;
 
-  const res = await axios.post(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
-      model: "nvidia/nemotron-3-super-120b-a12b:free",
-      messages: [{ role: "user", content: prompt }],
-      max_tokens: 300,
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      timeout: 30000,
-    }
-  );
-
-  const msg = res.data.choices[0]?.message;
-  const content = msg?.content?.trim() ?? "";
-
-  // Try strict JSON parse first, then extract JSON block, then parse prose
+  // Retry up to 3 times on bad/empty responses
   let parsed;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      parsed = JSON.parse(jsonMatch[0]);
-    } else {
-      // Extract signal from prose as last resort
-      const sigMatch = content.match(/\b(BUY|SELL|HOLD)\b/i);
-      if (!sigMatch) throw new Error(`No JSON in response: ${content.slice(0, 120)}`);
-      const scoreMatch = content.match(/[-+]?\d+/);
-      parsed = {
-        signal: sigMatch[1].toUpperCase(),
-        netScore: scoreMatch ? parseInt(scoreMatch[0], 10) : 0,
-        reasoning: content.slice(0, 120).replace(/\n/g, " "),
-      };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    let content = "";
+    try {
+      const res = await axios.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          model: "nvidia/nemotron-3-super-120b-a12b:free",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 300,
+          temperature: 0.2,
+          response_format: { type: "json_object" },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 30000,
+        }
+      );
+      content = res.data.choices[0]?.message?.content?.trim() ?? "";
+    } catch (err) {
+      if (attempt === 3) throw err;
+      console.warn(`[WARN] OpenRouter attempt ${attempt} failed (${err.message}) — retrying …`);
+      await new Promise((r) => setTimeout(r, 3000 * attempt));
+      continue;
     }
+
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try { parsed = JSON.parse(jsonMatch[0]); } catch { /* fall through */ }
+      }
+      if (!parsed) {
+        const sigMatch = content.match(/\b(BUY|SELL|HOLD)\b/i);
+        if (sigMatch) {
+          const scoreMatch = content.match(/[-+]?\d+/);
+          parsed = {
+            signal: sigMatch[1].toUpperCase(),
+            netScore: scoreMatch ? parseInt(scoreMatch[0], 10) : 0,
+            reasoning: content.slice(0, 120).replace(/\n/g, " "),
+          };
+        }
+      }
+    }
+
+    if (parsed) break;
+    console.warn(`[WARN] Attempt ${attempt}: unparse-able response ("${content.slice(0, 60)}") — retrying …`);
+    await new Promise((r) => setTimeout(r, 3000 * attempt));
   }
+  if (!parsed) throw new Error("Nemotron returned invalid JSON after 3 attempts.");
   const aiSignal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
   const aiScore  = typeof parsed.netScore === "number" ? parsed.netScore : 0;
 
