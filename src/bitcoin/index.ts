@@ -1,18 +1,16 @@
 import "dotenv/config";
 import { program } from "commander";
 
-import { C, col } from "../lib/colors.js";
 import { Trading212Client } from "../lib/t212.js";
 import { fetchRssNews, fetchNewsApiNews, fetchTrumpPosts } from "../lib/news.js";
-import { computeMomentum, computeNewsHash } from "../lib/momentum.js";
-import { callAI } from "../lib/ai.js";
 import { createRedisClient } from "../lib/redis.js";
-import { createTelegramClient } from "../lib/telegram.js";
-import { printAccountInfo, printPositionInfo, printSignal, printTopItems, printDisclaimer, printMarketData } from "../lib/display.js";
+import { createTelegramClient, buildSignalMessage } from "../lib/telegram.js";
+import { printHeader, printAccountInfo, printPositionInfo, printSignal, printTopItems, printDisclaimer, printMarketData } from "../lib/display.js";
 import { executeSignal, cmdSearchInstruments, runLoop } from "../lib/execution.js";
+import { computeBlendedSignal, checkRiskManagement } from "../lib/bot.js";
 import { DEFAULT_TICKER, MAX_ORDER_QTY, STOP_LOSS_PCT, TAKE_PROFIT_PCT, NEWS_API_QUERY, AI_BLEND, RSS_FEEDS, isRelevant } from "./config.js";
 import { fetchMarketData, fetchPriceHistory } from "./market.js";
-import type { MarketData, Signal, SignalResult } from "../lib/types.js";
+import type { MarketData, Signal } from "../lib/types.js";
 
 // Hard process-exit guard
 setTimeout(() => {
@@ -29,18 +27,14 @@ const GROQ_API_KEY       = process.env.GROQ_API_KEY       ?? "";
 const redis    = createRedisClient(process.env.UPSTASH_REDIS_REST_URL, process.env.UPSTASH_REDIS_REST_TOKEN);
 const telegram = createTelegramClient(process.env.TELEGRAM_BOT_TOKEN, process.env.TELEGRAM_CHAT_ID);
 
-async function computeSignal(
-  items: Array<{ title: string; source: string; pubDate: Date | null }>,
-  market: MarketData | null,
-  history: number[]
-): Promise<SignalResult> {
-  const newsHash = computeNewsHash(items);
-  const headlines = items.map((i) => `- ${i.title} [${i.source}]`).join("\n");
-  const priceCtx = market
-    ? `Current Bitcoin price: $${market.price.toLocaleString("en-US", { maximumFractionDigits: 0 })} (${market.changePct >= 0 ? "+" : ""}${market.changePct.toFixed(2)}% in last 24h).`
-    : "Current Bitcoin price: unavailable.";
+const formatPrice = (p: number) =>
+  p.toLocaleString("en-US", { maximumFractionDigits: 0 });
 
-  const prompt = `You are an expert cryptocurrency market analyst specialising in Bitcoin.
+function buildPrompt(market: MarketData | null, headlines: string): string {
+  const priceCtx = market
+    ? `Current Bitcoin price: $${formatPrice(market.price)} (${market.changePct >= 0 ? "+" : ""}${market.changePct.toFixed(2)}% in last 24h).`
+    : "Current Bitcoin price: unavailable.";
+  return `You are an expert cryptocurrency market analyst specialising in Bitcoin.
 
 Your task: analyse the headlines and price below, then output your answer.
 
@@ -62,25 +56,6 @@ Latest headlines:
 ${headlines}
 
 Your JSON response:`;
-
-  const { aiScore, reasoning, aiAvailable } = await callAI(prompt, OPENROUTER_API_KEY, GROQ_API_KEY);
-  const { momentumScore, rsi } = computeMomentum(market, history);
-  const blendedScore = Math.round(aiScore * AI_BLEND.ai + momentumScore * AI_BLEND.momentum);
-  const signal: Signal = !aiAvailable ? "HOLD" : blendedScore > 15 ? "BUY" : blendedScore < -15 ? "SELL" : "HOLD";
-
-  console.log(`  ${C.dim}Nemotron reasoning: ${reasoning}${C.reset}`);
-  const rsiStr = rsi !== null ? `RSI ${rsi.toFixed(1)}` : "RSI n/a";
-  console.log(`  ${C.dim}Momentum score: ${momentumScore >= 0 ? "+" : ""}${momentumScore}  (${rsiStr})  →  AI ${aiScore >= 0 ? "+" : ""}${aiScore}  →  Blended ${blendedScore >= 0 ? "+" : ""}${blendedScore}${C.reset}\n`);
-
-  return { signal, netScore: blendedScore, aiScore, momentumScore, rsi, newsHash, reasoning };
-}
-
-function printHeader(mode: string): void {
-  const now = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
-  const modeStr = col(C.green, `[${mode}]`);
-  console.log(`\n${C.bold}${"=".repeat(65)}${C.reset}`);
-  console.log(`${C.bold}  Bitcoin Signal  →  Trading 212  ${modeStr}  ${C.dim}${now}${C.reset}`);
-  console.log(`${C.bold}${"=".repeat(65)}${C.reset}\n`);
 }
 
 export async function runOnce(
@@ -90,7 +65,7 @@ export async function runOnce(
   execute: boolean,
   autoConfirm: boolean
 ): Promise<Record<string, unknown>> {
-  printHeader(client ? client.mode : "SIGNAL-ONLY");
+  printHeader("Bitcoin Signal", client ? client.mode : "SIGNAL-ONLY");
 
   if (client) {
     await printAccountInfo(client);
@@ -117,43 +92,22 @@ export async function runOnce(
   console.log("[INFO] Fetching BTC price history for momentum …");
   const history = await fetchPriceHistory(14);
 
-  let { signal, netScore, aiScore, momentumScore, rsi, newsHash, reasoning } = await computeSignal(items, market, history);
+  const headlines = items.map((i) => `- ${i.title} [${i.source}]`).join("\n");
+  let { signal, netScore, aiScore, momentumScore, rsi, newsHash, reasoning } =
+    await computeBlendedSignal(items, market, history, buildPrompt(market, headlines), AI_BLEND, OPENROUTER_API_KEY, GROQ_API_KEY);
 
-  printMarketData(market, "Bitcoin", (p) => p.toLocaleString("en-US", { maximumFractionDigits: 0 }));
+  printMarketData(market, "Bitcoin", formatPrice);
   printSignal(signal, netScore);
   printTopItems(items);
 
   let riskOverride = false;
   if (execute && client && market) {
-    try {
-      const riskPos = await client.getPosition(ticker);
-      if (riskPos && parseFloat(riskPos.quantity) > 0) {
-        const entry = parseFloat(riskPos.averagePrice);
-        const pct   = entry > 0 ? ((market.price - entry) / entry) * 100 : 0;
-        if (pct <= -STOP_LOSS_PCT) {
-          console.log(`[RISK] Stop-loss triggered: ${pct.toFixed(2)}% from entry $${entry} — forcing SELL`);
-          await telegram.send(`🛑 <b>Stop-loss triggered</b>\n<code>${ticker}</code>  Entry: $${entry.toLocaleString("en-US")}  Now: $${market.price.toLocaleString("en-US")}  (${pct.toFixed(2)}%)`);
-          signal = "SELL"; riskOverride = true;
-        } else if (pct >= TAKE_PROFIT_PCT) {
-          console.log(`[RISK] Take-profit triggered: +${pct.toFixed(2)}% from entry $${entry} — forcing SELL`);
-          await telegram.send(`💰 <b>Take-profit triggered</b>\n<code>${ticker}</code>  Entry: $${entry.toLocaleString("en-US")}  Now: $${market.price.toLocaleString("en-US")}  (+${pct.toFixed(2)}%)`);
-          signal = "SELL"; riskOverride = true;
-        }
-      }
-    } catch { /* no open position or fetch failed */ }
+    riskOverride = await checkRiskManagement(client, market, ticker, STOP_LOSS_PCT, TAKE_PROFIT_PCT, telegram, formatPrice);
+    if (riskOverride) signal = "SELL" as Signal;
   }
 
   if (signal !== "HOLD" && !riskOverride) {
-    const emoji = signal === "BUY" ? "🟢" : "🔴";
-    const priceStr = market
-      ? ` @ $${market.price.toLocaleString("en-US", { maximumFractionDigits: 0 })} (${market.changePct >= 0 ? "+" : ""}${market.changePct.toFixed(2)}%)`
-      : "";
-    await telegram.send(
-      `${emoji} <b>Bitcoin ${signal}</b>${priceStr}\n` +
-      `Score: ${netScore >= 0 ? "+" : ""}${netScore}  (AI ${aiScore >= 0 ? "+" : ""}${aiScore} / Mom ${momentumScore >= 0 ? "+" : ""}${momentumScore})\n` +
-      `${reasoning ? `Reasoning: ${reasoning}\n` : ""}` +
-      `Time: ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`
-    );
+    await telegram.send(buildSignalMessage("Bitcoin", signal, market, formatPrice, netScore, aiScore, momentumScore, reasoning));
   }
 
   let orderResult = null;

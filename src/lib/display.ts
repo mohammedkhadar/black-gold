@@ -2,6 +2,27 @@ import { C, col } from "./colors.js";
 import type { Trading212Client } from "./t212.js";
 import type { MarketData, NewsItem } from "./types.js";
 
+export function printHeader(title: string, mode: string): void {
+  const now = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
+  const modeStr = col(C.green, `[${mode}]`);
+  console.log(`\n${C.bold}${"=".repeat(65)}${C.reset}`);
+  console.log(`${C.bold}  ${title}  →  Trading 212  ${modeStr}  ${C.dim}${now}${C.reset}`);
+  console.log(`${C.bold}${"=".repeat(65)}${C.reset}\n`);
+}
+
+export function printScoreBreakdown(
+  reasoning: string,
+  momentumScore: number,
+  rsi: number | null,
+  aiScore: number,
+  blendedScore: number
+): void {
+  console.log(`  ${C.dim}Nemotron reasoning: ${reasoning}${C.reset}`);
+  const rsiStr = rsi !== null ? `RSI ${rsi.toFixed(1)}` : "RSI n/a";
+  const sign = (n: number) => (n >= 0 ? "+" : "") + n;
+  console.log(`  ${C.dim}Momentum score: ${sign(momentumScore)}  (${rsiStr})  →  AI ${sign(aiScore)}  →  Blended ${sign(blendedScore)}${C.reset}\n`);
+}
+
 export async function printAccountInfo(client: Trading212Client): Promise<void> {
   try {
     const cash = await client.getCash();
