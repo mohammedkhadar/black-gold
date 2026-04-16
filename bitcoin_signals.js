@@ -775,15 +775,7 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
 
   let orderResult = null;
   if (execute && client) {
-    // Get last hash from Redis (CI-safe), fall back to local file
-    let lastNewsHash = await redisGet("btc:lastNewsHash");
-    if (!lastNewsHash) {
-      try {
-        const { readFile } = await import("node:fs/promises");
-        const last = JSON.parse(await readFile("last_btc_signal.json", "utf8"));
-        lastNewsHash = last.newsHash ?? null;
-      } catch (_) { /* no previous state file */ }
-    }
+    const lastNewsHash = await redisGet("btc:lastNewsHash");
 
     if (lastNewsHash && lastNewsHash === newsHash) {
       console.log(`[INFO] News unchanged (hash: ${newsHash}) — skipping order.`);
@@ -810,14 +802,6 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
       .slice(0, 10)
       .map(({ title, source }) => ({ title, source })),
   };
-
-  try {
-    const { writeFile, appendFile } = await import("node:fs/promises");
-    await writeFile("last_btc_signal.json", JSON.stringify(output, null, 2));
-    await appendFile("btc_signal_history.jsonl", JSON.stringify({ ...output, reasoning }) + "\n");
-  } catch (err) {
-    console.warn(`[WARN] Could not write local state/history: ${err.message}`);
-  }
 
   // Persist hash and history to Redis
   await redisSet("btc:lastNewsHash", newsHash);
