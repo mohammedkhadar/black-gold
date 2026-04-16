@@ -1,0 +1,75 @@
+name: Bitcoin Signal & Trade
+
+on:
+  schedule:
+    # Every 5 minutes, Mon–Fri all day (LSE 08:00–16:30 UTC + NYSE 14:30–21:00 UTC)
+    # Running 07:00–21:00 UTC covers both windows; GitHub cron is UTC.
+    - cron: "*/5 7-21 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      quantity:
+        description: "Number of shares to buy"
+        required: false
+        default: "1"
+      execute:
+        description: "Actually place the order (true/false)"
+        required: false
+        default: "true"
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore last signal state
+        uses: actions/cache/restore@v4
+        with:
+          path: last_btc_signal.json
+          key: last-btc-signal-${{ github.run_id }}
+          restore-keys: last-btc-signal-
+
+      - name: Verify secrets
+        run: |
+          if [ -z "$T212_API_KEY" ]; then echo "ERROR: T212_API_KEY secret is missing or empty" && exit 1; fi
+          if [ -z "$T212_SECRET_KEY" ]; then echo "ERROR: T212_SECRET_KEY secret is missing or empty" && exit 1; fi
+          if [ -z "$OPENROUTER_API_KEY" ]; then echo "ERROR: OPENROUTER_API_KEY secret is missing or empty" && exit 1; fi
+          echo "Secrets verified OK"
+        env:
+          T212_API_KEY: ${{ secrets.T212_API_KEY }}
+          T212_SECRET_KEY: ${{ secrets.T212_SECRET_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+      - name: Run Bitcoin signal and trade
+        env:
+          T212_API_KEY: ${{ secrets.T212_API_KEY }}
+          T212_SECRET_KEY: ${{ secrets.T212_SECRET_KEY }}
+          NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          QUANTITY="${{ github.event.inputs.quantity || '1' }}"
+          EXECUTE="${{ github.event.inputs.execute || 'true' }}"
+
+          if [ "$EXECUTE" = "true" ]; then
+            node bitcoin_signals.js --execute --quantity "$QUANTITY" --auto-confirm
+          else
+            node bitcoin_signals.js --quantity "$QUANTITY"
+          fi
+
+      - name: Save last signal state
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: last_btc_signal.json
+          key: last-btc-signal-${{ github.run_id }}
