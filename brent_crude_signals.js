@@ -159,8 +159,9 @@ async function fetchRssNews(maxPerFeed = 10) {
       const source = feed.title || url;
       for (const entry of feed.items.slice(0, maxPerFeed)) {
         items.push({
-          title:  entry.title || "",
+          title:   entry.title || "",
           source,
+          pubDate: entry.isoDate ? new Date(entry.isoDate) : null,
         });
       }
     } catch (err) {
@@ -178,8 +179,9 @@ async function fetchNewsApiNews(query = "oil brent crude geopolitical") {
       timeout: 10000,
     });
     return res.data.articles.map((a) => ({
-      title:  a.title || "",
-      source: a.source?.name || "NewsAPI",
+      title:   a.title || "",
+      source:  a.source?.name || "NewsAPI",
+      pubDate: a.publishedAt ? new Date(a.publishedAt) : null,
     }));
   } catch (err) {
     console.warn(`[WARN] NewsAPI error: ${err.message}`);
@@ -202,8 +204,9 @@ async function fetchTrumpPosts() {
       const items = feed.items
         .slice(0, 15)
         .map((e) => ({
-          title: (e.title || e.contentSnippet || "").replace(/<[^>]+>/g, "").trim().slice(0, 280),
-          source: label,
+          title:   (e.title || e.contentSnippet || "").replace(/<[^>]+>/g, "").trim().slice(0, 280),
+          source:  label,
+          pubDate: e.isoDate ? new Date(e.isoDate) : null,
         }))
         .filter((i) => i.title.length > 5);
       if (items.length > 0) return items;
@@ -532,7 +535,7 @@ function printSignal(signal, netScore) {
   console.log(`  Net score : ${netScore >= 0 ? "+" : ""}${netScore}\n`);
 }
 
-function printTopItems(items, topN = 10) {
+function printTopItems(items, topN = 75) {
   const top = items.slice(0, topN);
   if (!top.length) {
     console.log("  No headlines found.\n");
@@ -664,8 +667,9 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
   items = items.concat(await fetchTrumpPosts());
 
   const before = items.length;
-  items = items.filter((i) => isOilRelevant(i.title));
-  console.log(`[INFO] Fetched ${before} articles, ${items.length} oil-relevant …`);
+  const cutoff = new Date(Date.now() - 3 * 60 * 60 * 1000); // 3 hours ago
+  items = items.filter((i) => isOilRelevant(i.title) && (!i.pubDate || i.pubDate >= cutoff));
+  console.log(`[INFO] Fetched ${before} articles, ${items.length} oil-relevant within last 3h …`);
 
   console.log("[INFO] Fetching price history for momentum …");
   const history = await fetchPriceHistory(14);
