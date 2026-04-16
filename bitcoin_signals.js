@@ -393,6 +393,11 @@ ${headlines}
 
 Your JSON response:`;
 
+  const MODELS = [
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+  ];
   let parsed;
   for (let attempt = 1; attempt <= 3; attempt++) {
     let content = "";
@@ -400,7 +405,7 @@ Your JSON response:`;
       const res = await axios.post(
         "https://openrouter.ai/api/v1/chat/completions",
         {
-          model: "nvidia/nemotron-3-super-120b-a12b:free",
+          model: MODELS[attempt - 1],
           messages: [{ role: "user", content: prompt }],
           max_tokens: 300,
           temperature: 0.2,
@@ -416,8 +421,11 @@ Your JSON response:`;
       );
       content = res.data.choices[0]?.message?.content?.trim() ?? "";
     } catch (err) {
-      if (attempt === 3) throw err;
-      console.warn(`[WARN] OpenRouter attempt ${attempt} failed (${err.message}) — retrying …`);
+      if (attempt === 3) {
+        console.warn(`[WARN] All OpenRouter attempts failed (${err.message}) — defaulting to HOLD.`);
+        break;
+      }
+      console.warn(`[WARN] OpenRouter attempt ${attempt} (${MODELS[attempt-1]}) failed (${err.message}) — retrying …`);
       await new Promise((r) => setTimeout(r, 3000 * attempt));
       continue;
     }
@@ -446,7 +454,10 @@ Your JSON response:`;
     console.warn(`[WARN] Attempt ${attempt}: unparse-able response ("${content.slice(0, 60)}") — retrying …`);
     await new Promise((r) => setTimeout(r, 3000 * attempt));
   }
-  if (!parsed) throw new Error("Nemotron returned invalid JSON after 3 attempts.");
+  if (!parsed) {
+    console.warn("[WARN] AI signal unavailable — defaulting to HOLD with score 0.");
+    parsed = { signal: "HOLD", netScore: 0, reasoning: "AI unavailable — rate limited." };
+  }
 
   const aiSignal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
   const aiScore  = typeof parsed.netScore === "number" ? parsed.netScore : 0;
