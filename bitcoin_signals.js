@@ -20,6 +20,12 @@ import { program } from "commander";
 import { Buffer } from "node:buffer";
 import readline from "node:readline";
 
+// Hard process-exit guard — prevents CI jobs hanging indefinitely
+setTimeout(() => {
+  console.warn("[WARN] Process timeout reached (4 min) — forcing exit.");
+  process.exit(0);
+}, 4 * 60 * 1000).unref();
+
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
@@ -151,7 +157,7 @@ function isBtcRelevant(title) {
 // ---------------------------------------------------------------------------
 
 async function fetchRssNews(maxPerFeed = 10) {
-  const parser = new RssParser();
+  const parser = new RssParser({ requestOptions: { timeout: 10000 } });
   const items = [];
   for (const url of RSS_FEEDS) {
     try {
@@ -190,7 +196,7 @@ async function fetchNewsApiNews(query = "bitcoin cryptocurrency crypto market") 
 }
 
 async function fetchTrumpPosts() {
-  const parser = new RssParser();
+  const parser = new RssParser({ requestOptions: { timeout: 10000 } });
   const sources = [
     { url: "https://truthsocial.com/@realDonaldTrump.rss",       label: "Trump/TruthSocial" },
     { url: "https://nitter.privacydev.net/realDonaldTrump/rss",  label: "Trump/X" },
@@ -439,9 +445,9 @@ Your JSON response:`;
   const aiSignal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
   const aiScore  = typeof parsed.netScore === "number" ? parsed.netScore : 0;
 
-  // 70/30 blend
+  // 90/10 blend
   const { momentumScore, rsi } = computeMomentum(market, history);
-  const blendedScore = Math.round(aiScore * 0.7 + momentumScore * 0.3);
+  const blendedScore = Math.round(aiScore * 0.9 + momentumScore * 0.1);
   const signal = blendedScore > 15 ? "BUY" : blendedScore < -15 ? "SELL" : "HOLD";
 
   console.log(`  ${C.dim}Nemotron reasoning: ${parsed.reasoning}${C.reset}`);
