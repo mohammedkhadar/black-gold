@@ -439,9 +439,9 @@ Your JSON response:`;
   const aiSignal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
   const aiScore  = typeof parsed.netScore === "number" ? parsed.netScore : 0;
 
-  // 50/50 blend
+  // 70/30 blend
   const { momentumScore, rsi } = computeMomentum(market, history);
-  const blendedScore = Math.round(aiScore * 0.5 + momentumScore * 0.5);
+  const blendedScore = Math.round(aiScore * 0.7 + momentumScore * 0.3);
   const signal = blendedScore > 15 ? "BUY" : blendedScore < -15 ? "SELL" : "HOLD";
 
   console.log(`  ${C.dim}Nemotron reasoning: ${parsed.reasoning}${C.reset}`);

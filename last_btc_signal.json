@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-04-16T01:27:47.957Z",
+  "signal": "HOLD",
+  "netScore": 12,
+  "aiScore": 0,
+  "momentumScore": 39,
+  "rsi": 76.2,
+  "newsHash": "86a626da4adf",
+  "price": 74617,
+  "changePct": -0.08,
+  "order": null,
+  "relevantHeadlines": [
+    {
+      "title": "Bitcoin capped at $75,000 as Nasdaq and S&P 500 fly to new record highs",
+      "source": "CoinDesk: Bitcoin, Ethereum, Crypto News and Price Data"
+    },
+    {
+      "title": "Justin Sun blasts Trump-linked WLFI's 'absurd' governance vote, escalating feud",
+      "source": "CoinDesk: Bitcoin, Ethereum, Crypto News and Price Data"
+    },
+    {
+      "title": "Ether open interest sees 26% increase as markets rally: Are traders into ETH again?",
+      "source": "Cointelegraph.com News"
+    },
+    {
+      "title": "Crypto PAC Fellowship discloses $11M from Cantor Fitzgerald and Anchorage Digital",
+      "source": "Cointelegraph.com News"
+    },
+    {
+      "title": "Here’s what happened in crypto today",
+      "source": "Cointelegraph.com News"
+    },
+    {
+      "title": "Bitcoin traders cash out 63K BTC profit as price rallied above $76K: Will the market rebound?",
+      "source": "Cointelegraph.com News"
+    },
+    {
+      "title": "Bitnomial launches Injective futures in US, with eyes on ETF eligibility",
+      "source": "Cointelegraph.com News"
+    },
+    {
+      "title": "Will Maine Governor Janet Mills Sign Nation's First AI Data Center Ban Into Law?",
+      "source": "Decrypt"
+    },
+    {
+      "title": "World Liberty Wants WLFI Locked Beyond Trump's Second Term—Investors Aren't Thrilled",
+      "source": "Decrypt"
+    }
+  ]
+}
