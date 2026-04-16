@@ -43,6 +43,9 @@ const RSS_FEEDS = [
   "https://feeds.bbci.co.uk/news/world/rss.xml",
   "https://rss.dw.com/rdf/rss-en-world",
   "https://www.aljazeera.com/xml/rss/all.xml",
+  // Google News RSS — free, no key, aggregates Reuters/AP/FT/Bloomberg
+  "https://news.google.com/rss/search?q=brent+crude+oil&hl=en-US&gl=US&ceid=US:en",
+  "https://news.google.com/rss/search?q=oil+OPEC+geopolitical&hl=en-US&gl=US&ceid=US:en",
 ];
 
 // ---------------------------------------------------------------------------
