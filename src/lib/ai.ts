@@ -38,7 +38,7 @@ export async function callAI(
         {
           model: useGroq ? GROQ_MODEL : OPENROUTER_MODELS[attempt - 1],
           messages: [{ role: "user", content: prompt }],
-          max_tokens: 300,
+          max_tokens: useGroq ? 800 : 300, // Groq gpt-oss-120b is a reasoning model; needs extra budget
           temperature: 0.2,
           ...(useGroq ? {} : { response_format: { type: "json_object" } }),
         },
