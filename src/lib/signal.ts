@@ -19,7 +19,7 @@ export async function computeSignal(
   const { aiScore, reasoning, aiAvailable } = await callAI(prompt, openrouterKey, groqKey);
   const { momentumScore, rsi } = computeMomentum(market, history);
   const blendedScore = Math.round(aiScore * aiBlend.ai + momentumScore * aiBlend.momentum);
-  const signal: Signal = !aiAvailable ? "HOLD" : blendedScore > 15 ? "BUY" : blendedScore < -15 ? "SELL" : "HOLD";
+  const signal: Signal = !aiAvailable ? "HOLD" : blendedScore > 50 ? "BUY" : blendedScore < -15 ? "SELL" : "HOLD";
 
   console.log(`  ${C.dim}Nemotron reasoning: ${reasoning}${C.reset}`);
   const rsiStr = rsi !== null ? `RSI ${rsi.toFixed(1)}` : "RSI n/a";
