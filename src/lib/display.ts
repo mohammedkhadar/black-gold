@@ -73,3 +73,11 @@ export function printMarketData(market: MarketData | null, label: string, format
   console.log(`  Range  : ${formatPrice(market.dayLow ?? 0)} – ${formatPrice(market.dayHigh ?? 0)}`);
   console.log(`  Volume : ${market.volume.toLocaleString()}\n`);
 }
+
+export function printHeader(title: string, mode: string): void {
+  const now = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
+  const modeStr = col(C.green, `[${mode}]`);
+  console.log(`\n${C.bold}${"=".repeat(65)}${C.reset}`);
+  console.log(`${C.bold}  ${title}  \u2192  Trading 212  ${modeStr}  ${C.dim}${now}${C.reset}`);
+  console.log(`${C.bold}${"=".repeat(65)}${C.reset}\n`);
+}

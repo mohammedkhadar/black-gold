@@ -8,7 +8,7 @@ import { computeMomentum, computeNewsHash } from "../lib/momentum.js";
 import { callAI } from "../lib/ai.js";
 import { createRedisClient } from "../lib/redis.js";
 import { createTelegramClient } from "../lib/telegram.js";
-import { printAccountInfo, printPositionInfo, printSignal, printTopItems, printDisclaimer, printMarketData } from "../lib/display.js";
+import { printAccountInfo, printPositionInfo, printSignal, printTopItems, printDisclaimer, printMarketData, printHeader } from "../lib/display.js";
 import { executeSignal, cmdSearchInstruments, runLoop } from "../lib/execution.js";
 import { DEFAULT_TICKER, MAX_ORDER_QTY, STOP_LOSS_PCT, TAKE_PROFIT_PCT, NEWS_API_QUERY, AI_BLEND, RSS_FEEDS, isRelevant } from "./config.js";
 import { fetchMarketData, fetchPriceHistory } from "./market.js";
@@ -75,13 +75,6 @@ Your JSON response:`;
   return { signal, netScore: blendedScore, aiScore, momentumScore, rsi, newsHash, reasoning };
 }
 
-function printHeader(mode: string): void {
-  const now = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
-  const modeStr = col(C.green, `[${mode}]`);
-  console.log(`\n${C.bold}${"=".repeat(65)}${C.reset}`);
-  console.log(`${C.bold}  Brent Crude Signal  →  Trading 212  ${modeStr}  ${C.dim}${now}${C.reset}`);
-  console.log(`${C.bold}${"=".repeat(65)}${C.reset}\n`);
-}
 
 export async function runOnce(
   client: Trading212Client | null,
@@ -90,7 +83,7 @@ export async function runOnce(
   execute: boolean,
   autoConfirm: boolean
 ): Promise<Record<string, unknown>> {
-  printHeader(client ? client.mode : "SIGNAL-ONLY");
+  printHeader("Brent Crude Signal", client ? client.mode : "SIGNAL-ONLY");
 
   if (client) {
     await printAccountInfo(client);

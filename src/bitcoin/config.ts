@@ -5,7 +5,7 @@ export const MAX_ORDER_QTY: number   = 1000;
 export const STOP_LOSS_PCT: number   = 2;
 export const TAKE_PROFIT_PCT: number = 3;
 export const NEWS_API_QUERY: string  = "bitcoin cryptocurrency crypto market";
-export const AI_BLEND: AIBlend       = { ai: 0.9, momentum: 0.1 };
+export const AI_BLEND: AIBlend       = { ai: 0.8, momentum: 0.2 };
 
 export const RSS_FEEDS: string[] = [
   "https://www.coindesk.com/arc/outboundfeeds/rss/",
