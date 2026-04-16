@@ -2,9 +2,9 @@ name: Bitcoin Signal & Trade
 
 on:
   schedule:
-    # Every 5 minutes, Mon–Fri all day (LSE 08:00–16:30 UTC + NYSE 14:30–21:00 UTC)
+    # Every 30 minutes, Mon–Fri all day (LSE 08:00–16:30 UTC + NYSE 14:30–21:00 UTC)
     # Running 07:00–21:00 UTC covers both windows; GitHub cron is UTC.
-    - cron: "*/5 7-21 * * 1-5"
+    - cron: "*/30 7-21 * * 1-5"
   workflow_dispatch:
     inputs:
       quantity:

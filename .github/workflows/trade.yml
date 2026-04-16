@@ -2,8 +2,8 @@ name: Brent Crude Signal & Trade
 
 on:
   schedule:
-    # Every 5 minutes during Euronext trading hours: 08:00–16:30 CET = 07:00–15:30 UTC (BST)
-    - cron: "*/5 7-15 * * 1-5"
+    # Every 30 minutes during Euronext trading hours: 08:00–16:30 CET = 07:00–15:30 UTC (BST)
+    - cron: "*/30 7-15 * * 1-5"
   workflow_dispatch:
     inputs:
       quantity:
