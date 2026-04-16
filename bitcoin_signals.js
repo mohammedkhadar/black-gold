@@ -24,7 +24,7 @@ import readline from "node:readline";
 setTimeout(() => {
   console.warn("[WARN] Process timeout reached (4 min) — forcing exit.");
   process.exit(0);
-}, 4 * 60 * 1000).unref();
+}, 4 * 60 * 1000);
 
 // ---------------------------------------------------------------------------
 // Configuration

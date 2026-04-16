@@ -17,6 +17,12 @@ import RssParser from "rss-parser";
 import yahooFinance from "yahoo-finance2";
 import { createHash } from "node:crypto";
 
+// Hard process-exit guard — prevents CI jobs hanging indefinitely
+setTimeout(() => {
+  console.warn("[WARN] Process timeout reached (4 min) — forcing exit.");
+  process.exit(0);
+}, 4 * 60 * 1000);
+
 // yahoo-finance2 v2 exports the class as default; create one instance.
 // Falls back to Stooq CSV if Yahoo rate-limits (429).
 let _yfInstance = null;
