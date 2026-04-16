@@ -3,9 +3,8 @@ import type { AIResult } from "./types.js";
 
 const OPENROUTER_MODELS = [
   "nvidia/nemotron-3-super-120b-a12b:free",  // attempt 1 — Nemotron
-  "openai/gpt-oss-120b:free",                // attempt 2 — GPT-OSS 120B (different pool)
 ] as const;
-const GROQ_MODEL = "openai/gpt-oss-120b"; // attempt 3 — Groq (separate infrastructure)
+const GROQ_MODEL = "openai/gpt-oss-120b"; // attempt 2 — Groq (separate infrastructure)
 
 interface ParsedAIResponse {
   signal?: unknown;
@@ -14,9 +13,9 @@ interface ParsedAIResponse {
 }
 
 /**
- * Call the AI with up to 3 attempts:
- *   Attempts 1 & 2 → OpenRouter (Nemotron → GPT-OSS 120B free)
- *   Attempt 3      → Groq openai/gpt-oss-120b (separate infrastructure)
+ * Call the AI with up to 2 attempts:
+ *   Attempt 1 → OpenRouter (Nemotron free)
+ *   Attempt 2 → Groq openai/gpt-oss-120b (separate infrastructure)
  */
 export async function callAI(
   prompt: string,
@@ -26,10 +25,10 @@ export async function callAI(
   let parsed: ParsedAIResponse | null = null;
   let aiAvailable = true;
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
     let content = "";
     try {
-      const useGroq = attempt === 3;
+      const useGroq = attempt === 2;
       const res = await axios.post<{ choices: Array<{ message?: { content?: string } }> }>(
         useGroq
           ? "https://api.groq.com/openai/v1/chat/completions"
@@ -52,11 +51,11 @@ export async function callAI(
       content = res.data.choices[0]?.message?.content?.trim() ?? "";
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (attempt === 3) {
+      if (attempt === 2) {
         console.warn(`[WARN] All AI attempts failed (${msg}) — defaulting to HOLD.`);
         break;
       }
-      console.warn(`[WARN] Attempt ${attempt} (${attempt < 3 ? OPENROUTER_MODELS[attempt - 1] : GROQ_MODEL}) failed (${msg}) — retrying …`);
+      console.warn(`[WARN] Attempt ${attempt} (${OPENROUTER_MODELS[attempt - 1]}) failed (${msg}) — retrying …`);
       await new Promise((r) => setTimeout(r, 3000 * attempt));
       continue;
     }
