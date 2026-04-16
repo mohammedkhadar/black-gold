@@ -1,9 +1,9 @@
 import type { AIBlend } from "../lib/types.js";
+import { MAX_ORDER_QTY, STOP_LOSS_PCT, TAKE_PROFIT_PCT } from "../lib/config.js";
+
+export { MAX_ORDER_QTY, STOP_LOSS_PCT, TAKE_PROFIT_PCT };
 
 export const DEFAULT_TICKER: string  = "IB1Tl_EQ";
-export const MAX_ORDER_QTY: number   = 1000;
-export const STOP_LOSS_PCT: number   = 2;
-export const TAKE_PROFIT_PCT: number = 3;
 export const NEWS_API_QUERY: string  = "bitcoin cryptocurrency crypto market";
 export const AI_BLEND: AIBlend       = { ai: 0.8, momentum: 0.2 };
 
