@@ -10,6 +10,7 @@ interface ParsedAIResponse {
   signal?: unknown;
   netScore?: unknown;
   reasoning?: unknown;
+  confidence?: unknown;
 }
 
 /**
@@ -94,7 +95,6 @@ export async function callAI(
 
   const signal = String(parsed.signal ?? "");
 
-  // Sanitise reasoning: if it starts with '{' the fallback path captured raw JSON — unwrap it
   let reasoning = typeof parsed.reasoning === "string" ? parsed.reasoning : "";
   if (reasoning.trimStart().startsWith("{")) {
     try {
@@ -102,13 +102,18 @@ export async function callAI(
       reasoning = typeof inner.reasoning === "string" ? inner.reasoning : reasoning;
     } catch { /* leave as-is */ }
   }
-  // Truncate runaway strings
   if (reasoning.length > 200) reasoning = reasoning.slice(0, 200).trimEnd() + "…";
+
+  const aiScore = typeof parsed.netScore === "number" ? parsed.netScore : 0;
+  const explicitConfidence = typeof parsed.confidence === "number" ? parsed.confidence : null;
+  const scoreMagnitude = Math.abs(aiScore) / 100;
+  const confidence = explicitConfidence ?? Math.round(scoreMagnitude * 100);
 
   return {
     aiSignal:    ["BUY", "HOLD", "SELL"].includes(signal) ? signal : "HOLD",
-    aiScore:     typeof parsed.netScore === "number" ? parsed.netScore : 0,
+    aiScore,
     reasoning,
     aiAvailable,
+    confidence,
   };
 }

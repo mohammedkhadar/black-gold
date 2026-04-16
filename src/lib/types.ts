@@ -20,6 +20,9 @@ export interface MarketData {
 export interface MomentumResult {
   momentumScore: number;
   rsi: number | null;
+  atr: number | null;
+  trend7d: number;
+  trend30d: number;
 }
 
 export interface AIResult {
@@ -27,6 +30,7 @@ export interface AIResult {
   aiScore: number;
   reasoning: string;
   aiAvailable: boolean;
+  confidence: number;
 }
 
 export type Signal = "BUY" | "HOLD" | "SELL";
@@ -37,8 +41,12 @@ export interface SignalResult {
   aiScore: number;
   momentumScore: number;
   rsi: number | null;
+  atr: number | null;
+  trend7d: number;
+  trend30d: number;
   newsHash: string;
   reasoning: string;
+  confidence: number;
 }
 
 export interface RedisClient {
