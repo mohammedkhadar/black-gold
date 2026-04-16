@@ -38,8 +38,10 @@ const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID;
 
 const T212_BASE       = "https://demo.trading212.com/api/v0";
 
-const DEFAULT_TICKER = "EBRTm_EQ"; // WisdomTree Brent Crude Oil - EUR Daily Hedged (T212 paper)
-const MAX_ORDER_QTY  = 1000;      // hard cap on quantity per order
+const DEFAULT_TICKER  = "EBRTm_EQ"; // WisdomTree Brent Crude Oil - EUR Daily Hedged (T212 paper)
+const MAX_ORDER_QTY   = 1000;       // hard cap on quantity per order
+const STOP_LOSS_PCT   = 3;          // close if position is down ≥ 3% from entry
+const TAKE_PROFIT_PCT = 5;          // close if position is up ≥ 5% from entry
 
 const RSS_FEEDS = [
   "https://feeds.bbci.co.uk/news/world/rss.xml",
@@ -698,14 +700,37 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
   console.log("[INFO] Fetching price history for momentum …");
   const history = await fetchPriceHistory(14);
 
-  const { signal, netScore, aiScore, momentumScore, rsi, newsHash, reasoning } = await computeSignal(items, market, history);
+  let { signal, netScore, aiScore, momentumScore, rsi, newsHash, reasoning } = await computeSignal(items, market, history);
 
   printMarket(market);
   printSignal(signal, netScore);
   printTopItems(items);
 
-  // Send Telegram notification for BUY/SELL only
-  if (signal !== "HOLD") {
+  // Stop-loss / take-profit override
+  let riskOverride = false;
+  if (execute && client && market) {
+    try {
+      const riskPos = await client.getPosition(ticker);
+      if (riskPos && parseFloat(riskPos.quantity) > 0) {
+        const entry = parseFloat(riskPos.averagePrice);
+        const pct   = entry > 0 ? ((market.price - entry) / entry) * 100 : 0;
+        if (pct <= -STOP_LOSS_PCT) {
+          console.log(`[RISK] Stop-loss triggered: ${pct.toFixed(2)}% from entry $${entry} — forcing SELL`);
+          await sendTelegram(`🛑 <b>Stop-loss triggered</b>\n<code>${ticker}</code>  Entry: $${entry.toFixed(2)}  Now: $${market.price.toFixed(2)}  (${pct.toFixed(2)}%)`);
+          signal = "SELL";
+          riskOverride = true;
+        } else if (pct >= TAKE_PROFIT_PCT) {
+          console.log(`[RISK] Take-profit triggered: +${pct.toFixed(2)}% from entry $${entry} — forcing SELL`);
+          await sendTelegram(`💰 <b>Take-profit triggered</b>\n<code>${ticker}</code>  Entry: $${entry.toFixed(2)}  Now: $${market.price.toFixed(2)}  (+${pct.toFixed(2)}%)`);
+          signal = "SELL";
+          riskOverride = true;
+        }
+      }
+    } catch (_) { /* no position or fetch failed */ }
+  }
+
+  // Send Telegram notification for BUY/SELL only (skip if risk override already notified)
+  if (signal !== "HOLD" && !riskOverride) {
     const emoji = signal === "BUY" ? "🟢" : "🔴";
     const priceStr = market ? ` @ $${market.price.toFixed(2)} (${market.changePct >= 0 ? "+" : ""}${market.changePct.toFixed(2)}%)` : "";
     await sendTelegram(
@@ -723,7 +748,7 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
     try {
       const { readFile } = await import("node:fs/promises");
       const last = JSON.parse(await readFile("last_signal.json", "utf8"));
-      if (last.order) lastNewsHash = last.newsHash ?? null;
+      lastNewsHash = last.newsHash ?? null;
     } catch (_) { /* no last_signal.json yet */ }
 
     if (lastNewsHash && lastNewsHash === newsHash) {
@@ -753,10 +778,11 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
   };
 
   try {
-    const { writeFile } = await import("node:fs/promises");
+    const { writeFile, appendFile } = await import("node:fs/promises");
     await writeFile("last_signal.json", JSON.stringify(output, null, 2));
+    await appendFile("signal_history.jsonl", JSON.stringify({ ...output, reasoning }) + "\n");
   } catch (err) {
-    console.warn(`[WARN] Could not write last_signal.json: ${err.message}`);
+    console.warn(`[WARN] Could not write state/history: ${err.message}`);
   }
 
   return output;

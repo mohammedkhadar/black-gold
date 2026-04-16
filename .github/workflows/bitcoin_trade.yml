@@ -20,6 +20,8 @@ jobs:
   trade:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -33,13 +35,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Restore last signal state
-        uses: actions/cache/restore@v4
-        with:
-          path: last_btc_signal.json
-          key: last-btc-signal-${{ github.run_id }}
-          restore-keys: last-btc-signal-
 
       - name: Verify secrets
         run: |
@@ -70,9 +65,12 @@ jobs:
             node bitcoin_signals.js --quantity "$QUANTITY"
           fi
 
-      - name: Save last signal state
-        uses: actions/cache/save@v4
+      - name: Commit state and history
         if: always()
-        with:
-          path: last_btc_signal.json
-          key: last-btc-signal-${{ github.run_id }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f last_btc_signal.json btc_signal_history.jsonl 2>/dev/null || true
+          git diff --staged --quiet && echo "No state changes" || \
+            (git commit -m "state: btc signal $(date -u +%Y-%m-%dT%H:%M)Z" && \
+             git push || (git pull --rebase && git push) || echo "[WARN] State push failed")
