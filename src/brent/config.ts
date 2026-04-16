@@ -2,8 +2,8 @@ import type { AIBlend } from "../lib/types.js";
 
 export const DEFAULT_TICKER: string  = "EBRTm_EQ";
 export const MAX_ORDER_QTY: number   = 1000;
-export const STOP_LOSS_PCT: number   = 3;
-export const TAKE_PROFIT_PCT: number = 5;
+export const STOP_LOSS_PCT: number   = 2;
+export const TAKE_PROFIT_PCT: number = 3;
 export const NEWS_API_QUERY: string  = "oil brent crude geopolitical";
 export const AI_BLEND: AIBlend       = { ai: 0.5, momentum: 0.5 };
 
