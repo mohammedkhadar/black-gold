@@ -4,6 +4,59 @@ AI-powered commodity trading bot that analyzes news and momentum to generate BUY
 
 ## Features
 
+### Algorithm Flowchart
+
+```mermaid
+flowchart TD
+    Start([Start Signal Cycle]) --> FetchData[<b>Fetch Data</b><br/>• Market data<br/>• News headlines<br/>• Price history]
+
+    FetchData --> Filter[<b>Filter News</b><br/>• Relevance check<br/>• 5-hour cutoff]
+
+    Filter --> AI[<b>AI Analysis</b><br/>Nemotron + Groq<br/>Signal + Score + Confidence]
+
+    AI --> Momentum[<b>Compute Momentum</b><br/>• RSI(14)<br/>• Intraday change<br/>• 7d & 30d trends<br/>• ATR]
+
+    Momentum --> Align{"AI & Momentum<br/>Aligned?"}
+    Align -->|Yes| FullWeight[momentum = full]
+    Align -->|No| HalfWeight[momentum = 50%]
+    FullWeight --> Blend
+    HalfWeight --> Blend
+
+    Blend[<b>Blend Scores</b><br/>AI 80% + Momentum 20%]
+
+    Blend --> Signal{Signal<br/>Check}
+    Signal -->|Score > +50| BUY[BUY]
+    Signal -->|Score < -15| SELL[SELL]
+    Signal -->|Otherwise| HOLD[HOLD]
+
+    BUY --> Confidence{Check<br/>Confidence}
+    SELL --> Confidence
+
+    Confidence -->|confidence < 70%| SkipOrder[<b>Skip Order</b><br/>Log to journal]
+    Confidence -->|confidence >= 70%| NewsChange{News<br/>Changed?}
+
+    NewsChange -->|No| SkipOrder
+    NewsChange -->|Yes| PositionCheck{Open<br/>Position?}
+
+    PositionCheck -->|Yes| RiskCheck[<b>Risk Check</b><br/>Stop loss<br/>Take profit<br/>Trailing stop]
+    PositionCheck -->|No| AgeCheck[<b>Position Age</b><br/>>24h = 50% size]
+
+    RiskCheck --> StopLoss{Stop loss<br/>triggered?}
+    StopLoss -->|Yes| ForceSell[<b>Force SELL</b><br/>Telegram alert]
+    StopLoss -->|No| TakeProfit{Take profit<br/>triggered?}
+    TakeProfit -->|Yes| ForceSell
+    TakeProfit -->|No| Execute[Execute Order]
+
+    AgeCheck --> Execute
+    ForceSell --> UpdateJournal[<b>Update Journal</b><br/>Log outcome]
+    Execute --> UpdateJournal
+    SkipOrder --> UpdateJournal
+
+    UpdateJournal --> UpdateRedis[<b>Update Redis</b><br/>• Journal<br/>• News hash<br/>• Position time<br/>• Trailing stop]
+
+    UpdateRedis --> End([End Cycle])
+```
+
 ### Signal Generation
 
 | Component | Weight | Description |
