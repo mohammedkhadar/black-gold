@@ -396,9 +396,10 @@ Your JSON response:`;
   const MODELS = [
     "nvidia/nemotron-3-super-120b-a12b:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
+    "moonshotai/kimi-k2:free",
   ];
   let parsed;
+  let aiAvailable = true;
   for (let attempt = 1; attempt <= 3; attempt++) {
     let content = "";
     try {
@@ -457,6 +458,7 @@ Your JSON response:`;
   if (!parsed) {
     console.warn("[WARN] AI signal unavailable — defaulting to HOLD with score 0.");
     parsed = { signal: "HOLD", netScore: 0, reasoning: "AI unavailable — rate limited." };
+    aiAvailable = false;
   }
 
   const aiSignal = ["BUY", "HOLD", "SELL"].includes(parsed.signal) ? parsed.signal : "HOLD";
@@ -465,7 +467,7 @@ Your JSON response:`;
   // 90/10 blend
   const { momentumScore, rsi } = computeMomentum(market, history);
   const blendedScore = Math.round(aiScore * 0.9 + momentumScore * 0.1);
-  const signal = blendedScore > 15 ? "BUY" : blendedScore < -15 ? "SELL" : "HOLD";
+  const signal = !aiAvailable ? "HOLD" : blendedScore > 15 ? "BUY" : blendedScore < -15 ? "SELL" : "HOLD";
 
   console.log(`  ${C.dim}Nemotron reasoning: ${parsed.reasoning}${C.reset}`);
   const rsiStr = rsi !== null ? `RSI ${rsi.toFixed(1)}` : "RSI n/a";
