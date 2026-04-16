@@ -117,6 +117,33 @@ class Trading212Client {
 }
 
 // ---------------------------------------------------------------------------
+// News relevance filter
+// ---------------------------------------------------------------------------
+
+const OIL_RELEVANCE_TERMS = [
+  // Commodities & energy
+  "oil", "crude", "brent", "wti", "opec", "petroleum", "gasoline", "fuel", "lng",
+  "natural gas", "energy", "refiner", "barrel",
+  // Supply & demand drivers
+  "supply", "demand", "inventory", "stockpile", "production", "output", "export",
+  "import", "pipeline", "tanker", "shipping",
+  // Geopolitical hotspots
+  "iran", "iraq", "saudi", "russia", "ukraine", "libya", "venezuela", "nigeria",
+  "opec", "hormuz", "strait", "gulf", "middle east", "yemen", "houthi",
+  "israel", "gaza", "sanctions", "embargo",
+  // Macro / markets
+  "fed", "federal reserve", "interest rate", "inflation", "recession", "gdp",
+  "dollar", "tariff", "trade war", "china", "demand", "growth",
+  // Trump / policy keywords likely to move oil
+  "trump", "tariff", "drill", "fracking", "pipeline", "SPR", "strategic reserve",
+];
+
+function isOilRelevant(title) {
+  const lower = title.toLowerCase();
+  return OIL_RELEVANCE_TERMS.some((term) => lower.includes(term));
+}
+
+// ---------------------------------------------------------------------------
 // News fetching
 // ---------------------------------------------------------------------------
 
@@ -620,7 +647,9 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
   console.log("[INFO] Fetching Trump posts …");
   items = items.concat(await fetchTrumpPosts());
 
-  console.log(`[INFO] Fetched ${items.length} articles …`);
+  const before = items.length;
+  items = items.filter((i) => isOilRelevant(i.title));
+  console.log(`[INFO] Fetched ${before} articles, ${items.length} oil-relevant …`);
 
   console.log("[INFO] Fetching price history for momentum …");
   const history = await fetchPriceHistory(14);
