@@ -620,12 +620,10 @@ async function executeSignal(client, signal, ticker, orderQty, autoConfirm = fal
     const sigColor = signal === "BUY" ? C.green : C.red;
     console.log(`\n  ${col(sigColor, "Order submitted")}  id=${order.id ?? "?"}`);
     console.log(`[INFO] Order response: ${JSON.stringify(order, null, 2)}`);
-    const emoji = signal === "BUY" ? "🟢" : "🔴";
     await sendTelegram(
-      `${emoji} <b>Bitcoin ${signal}</b> — ${client.mode}\n` +
+      `✅ <b>Order placed</b> — ${client.mode}\n` +
       `Ticker: <code>${ticker}</code>  qty: ${sellQty}\n` +
-      `Order ID: ${order.id ?? "?"}\n` +
-      `Time: ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`
+      `Order ID: <code>${order.id ?? "?"}</code>`
     );
     return order;
   } catch (err) {
@@ -693,6 +691,17 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
   printMarket(market);
   printSignal(signal, netScore);
   printTopItems(items);
+
+  // Always send Telegram signal notification
+  {
+    const emoji = signal === "BUY" ? "🟢" : signal === "SELL" ? "🔴" : "🟡";
+    const priceStr = market ? ` @ $${market.price.toLocaleString("en-US", { maximumFractionDigits: 0 })} (${market.changePct >= 0 ? "+" : ""}${market.changePct.toFixed(2)}%)` : "";
+    await sendTelegram(
+      `${emoji} <b>Bitcoin ${signal}</b>${priceStr}\n` +
+      `Score: ${netScore >= 0 ? "+" : ""}${netScore}  (AI ${aiScore >= 0 ? "+" : ""}${aiScore} / Mom ${momentumScore >= 0 ? "+" : ""}${momentumScore})\n` +
+      `Time: ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`
+    );
+  }
 
   let orderResult = null;
   if (execute && client) {
