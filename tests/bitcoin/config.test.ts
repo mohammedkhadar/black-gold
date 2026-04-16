@@ -10,9 +10,9 @@ describe("bitcoin/config", () => {
     expect(AI_BLEND.ai + AI_BLEND.momentum).toBeCloseTo(1.0);
   });
 
-  it("AI_BLEND is 90/10 for bitcoin", () => {
-    expect(AI_BLEND.ai).toBe(0.9);
-    expect(AI_BLEND.momentum).toBe(0.1);
+  it("AI_BLEND is 80/20 for bitcoin", () => {
+    expect(AI_BLEND.ai).toBe(0.8);
+    expect(AI_BLEND.momentum).toBe(0.2);
   });
 
   it("RSS_FEEDS is a non-empty array of strings", () => {

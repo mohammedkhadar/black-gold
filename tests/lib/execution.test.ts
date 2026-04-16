@@ -49,7 +49,7 @@ describe("executeSignal", () => {
   });
 
   it("skips SELL when position quantity is 0", async () => {
-    const pos: Position = { quantity: "0", averagePrice: "50000", ppl: "0" };
+    const pos: Position = { quantity: "0", averagePrice: "50000", currentPrice: "50000", ppl: "0" };
     mockGetPosition.mockResolvedValueOnce(pos);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const result = await executeSignal({ ...opts, signal: "SELL" });
@@ -71,7 +71,7 @@ describe("executeSignal", () => {
   });
 
   it("places SELL order using position quantity", async () => {
-    const pos: Position = { quantity: "5", averagePrice: "48000", ppl: "200" };
+    const pos: Position = { quantity: "5", averagePrice: "48000", currentPrice: "48200", ppl: "200" };
     mockGetPosition.mockResolvedValueOnce(pos);
     mockPlaceMarketOrder.mockResolvedValueOnce({ id: "ord456" });
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
