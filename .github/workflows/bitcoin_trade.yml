@@ -65,7 +65,7 @@ jobs:
           EXECUTE="${{ github.event.inputs.execute || 'true' }}"
 
           if [ "$EXECUTE" = "true" ]; then
-            node src/bitcoin/index.js --execute --quantity "$QUANTITY" --auto-confirm
+            npx tsx src/bitcoin/index.ts --execute --quantity "$QUANTITY" --auto-confirm
           else
-            node src/bitcoin/index.js --quantity "$QUANTITY"
+            npx tsx src/bitcoin/index.ts --quantity "$QUANTITY"
           fi
