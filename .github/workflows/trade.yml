@@ -64,7 +64,7 @@ jobs:
           EXECUTE="${{ github.event.inputs.execute || 'true' }}"
 
           if [ "$EXECUTE" = "true" ]; then
-            node brent_crude_signals.js --execute --quantity "$QUANTITY" --auto-confirm
+            node src/brent/index.js --execute --quantity "$QUANTITY" --auto-confirm
           else
-            node brent_crude_signals.js --quantity "$QUANTITY"
+            node src/brent/index.js --quantity "$QUANTITY"
           fi

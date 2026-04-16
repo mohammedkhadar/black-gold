@@ -2,14 +2,15 @@
   "name": "black-gold",
   "version": "1.0.0",
   "description": "Brent crude geopolitical signal analyzer + Trading 212 executor",
-  "main": "brent_crude_signals.js",
+  "main": "src/brent/index.js",
   "type": "module",
   "scripts": {
-    "start": "node brent_crude_signals.js",
-    "live": "node brent_crude_signals.js --live",
-    "execute": "node brent_crude_signals.js --live --execute --value 100",
-    "demo": "node brent_crude_signals.js --execute --value 100",
-    "search": "node brent_crude_signals.js --search-instruments brent"
+    "start": "node src/brent/index.js",
+    "brent": "node src/brent/index.js",
+    "btc": "node src/bitcoin/index.js",
+    "execute": "node src/brent/index.js --execute --quantity 1 --auto-confirm",
+    "btc:execute": "node src/bitcoin/index.js --execute --quantity 1 --auto-confirm",
+    "search": "node src/brent/index.js --search-instruments brent"
   },
   "dependencies": {
     "axios": "^1.7.9",
