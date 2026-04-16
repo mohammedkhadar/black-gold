@@ -95,11 +95,23 @@ export async function callAI(
   }
 
   const signal = String(parsed.signal ?? "");
+
+  // Sanitise reasoning: if it starts with '{' the fallback path captured raw JSON — unwrap it
+  let reasoning = typeof parsed.reasoning === "string" ? parsed.reasoning : "";
+  if (reasoning.trimStart().startsWith("{")) {
+    try {
+      const inner = JSON.parse(reasoning) as ParsedAIResponse;
+      reasoning = typeof inner.reasoning === "string" ? inner.reasoning : reasoning;
+    } catch { /* leave as-is */ }
+  }
+  // Truncate runaway strings
+  if (reasoning.length > 200) reasoning = reasoning.slice(0, 200).trimEnd() + "…";
+
   return {
     aiSignal:    ["BUY", "HOLD", "SELL"].includes(signal) ? signal : "HOLD",
     aiScore:     typeof parsed.netScore === "number" ? parsed.netScore : 0,
     buyProb:     typeof parsed.buyProb  === "number" ? Math.min(100, Math.max(0, Math.round(parsed.buyProb))) : 0,
-    reasoning:   typeof parsed.reasoning === "string" ? parsed.reasoning : "",
+    reasoning,
     aiAvailable,
   };
 }
