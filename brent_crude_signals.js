@@ -35,6 +35,8 @@ const NEWS_API_KEY       = process.env.NEWS_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID;
+const UPSTASH_URL        = process.env.UPSTASH_REDIS_REST_URL;
+const UPSTASH_TOKEN      = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 const T212_BASE       = "https://demo.trading212.com/api/v0";
 
@@ -577,6 +579,48 @@ async function sendTelegram(text) {
 }
 
 // ---------------------------------------------------------------------------
+// Upstash Redis helpers (CI-safe persistent state)
+// ---------------------------------------------------------------------------
+
+async function redisGet(key) {
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) return null;
+  try {
+    const res = await axios.post(UPSTASH_URL, ["GET", key], {
+      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+      timeout: 10000,
+    });
+    return res.data?.result ?? null;
+  } catch (err) {
+    console.warn(`[WARN] Redis GET failed: ${err.message}`);
+    return null;
+  }
+}
+
+async function redisSet(key, value) {
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) return;
+  try {
+    await axios.post(UPSTASH_URL, ["SET", key, String(value)], {
+      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+      timeout: 10000,
+    });
+  } catch (err) {
+    console.warn(`[WARN] Redis SET failed: ${err.message}`);
+  }
+}
+
+async function redisAppend(listKey, value) {
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) return;
+  try {
+    await axios.post(UPSTASH_URL, ["RPUSH", listKey, String(value)], {
+      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+      timeout: 10000,
+    });
+  } catch (err) {
+    console.warn(`[WARN] Redis RPUSH failed: ${err.message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Order execution
 // ---------------------------------------------------------------------------
 
@@ -743,13 +787,15 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
 
   let orderResult = null;
   if (execute && client) {
-    // Skip order if news hasn't changed since last order
-    let lastNewsHash = null;
-    try {
-      const { readFile } = await import("node:fs/promises");
-      const last = JSON.parse(await readFile("last_signal.json", "utf8"));
-      lastNewsHash = last.newsHash ?? null;
-    } catch (_) { /* no last_signal.json yet */ }
+    // Get last hash from Redis (CI-safe), fall back to local file
+    let lastNewsHash = await redisGet("brent:lastNewsHash");
+    if (!lastNewsHash) {
+      try {
+        const { readFile } = await import("node:fs/promises");
+        const last = JSON.parse(await readFile("last_signal.json", "utf8"));
+        lastNewsHash = last.newsHash ?? null;
+      } catch (_) { /* no last_signal.json yet */ }
+    }
 
     if (lastNewsHash && lastNewsHash === newsHash) {
       console.log(`[INFO] News unchanged (hash: ${newsHash}) — skipping order.`);
@@ -782,8 +828,12 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
     await writeFile("last_signal.json", JSON.stringify(output, null, 2));
     await appendFile("signal_history.jsonl", JSON.stringify({ ...output, reasoning }) + "\n");
   } catch (err) {
-    console.warn(`[WARN] Could not write state/history: ${err.message}`);
+    console.warn(`[WARN] Could not write local state/history: ${err.message}`);
   }
+
+  // Persist hash and history to Redis
+  await redisSet("brent:lastNewsHash", newsHash);
+  await redisAppend("brent:history", JSON.stringify({ ...output, reasoning }));
 
   return output;
 }
