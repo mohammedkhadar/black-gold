@@ -404,19 +404,21 @@ Your JSON response:`;
   for (let attempt = 1; attempt <= 3; attempt++) {
     let content = "";
     try {
-      const useGroq = false;
+      const useGroq = attempt === 3;
       const res = await axios.post(
-        "https://openrouter.ai/api/v1/chat/completions",
+        useGroq
+          ? "https://api.groq.com/openai/v1/chat/completions"
+          : "https://openrouter.ai/api/v1/chat/completions",
         {
-          model: attempt === 3 ? "meta-llama/llama-3.3-70b-instruct:free" : OPENROUTER_MODELS[attempt - 1],
+          model: useGroq ? "openai/gpt-oss-120b" : OPENROUTER_MODELS[attempt - 1],
           messages: [{ role: "user", content: prompt }],
           max_tokens: 300,
           temperature: 0.2,
-          response_format: { type: "json_object" },
+          ...(useGroq ? {} : { response_format: { type: "json_object" } }),
         },
         {
           headers: {
-            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+            Authorization: `Bearer ${useGroq ? GROQ_API_KEY : OPENROUTER_API_KEY}`,
             "Content-Type": "application/json",
           },
           timeout: 30000,
