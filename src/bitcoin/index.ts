@@ -131,15 +131,17 @@ export async function runOnce(
     try {
       const riskPos = await client.getPosition(ticker);
       if (riskPos && parseFloat(riskPos.quantity) > 0) {
-        const entry = parseFloat(riskPos.averagePrice);
-        const pct   = entry > 0 ? ((market.price - entry) / entry) * 100 : 0;
+        const entry   = parseFloat(riskPos.averagePrice);
+        const current = parseFloat(riskPos.currentPrice);
+        const pct     = entry > 0 ? ((current - entry) / entry) * 100 : 0;
+        const fmt     = (p: number) => p.toLocaleString("en-US", { maximumFractionDigits: 2 });
         if (pct <= -STOP_LOSS_PCT) {
-          console.log(`[RISK] Stop-loss triggered: ${pct.toFixed(2)}% from entry $${entry} — forcing SELL`);
-          await telegram.send(`🛑 <b>Stop-loss triggered</b>\n<code>${ticker}</code>  Entry: $${entry.toLocaleString("en-US")}  Now: $${market.price.toLocaleString("en-US")}  (${pct.toFixed(2)}%)`);
+          console.log(`[RISK] Stop-loss triggered: ${pct.toFixed(2)}% from entry $${fmt(entry)} — forcing SELL`);
+          await telegram.send(`🛑 <b>Stop-loss triggered</b>\n<code>${ticker}</code>  Entry: $${fmt(entry)}  Now: $${fmt(current)}  (${pct.toFixed(2)}%)`);
           signal = "SELL"; riskOverride = true;
         } else if (pct >= TAKE_PROFIT_PCT) {
-          console.log(`[RISK] Take-profit triggered: +${pct.toFixed(2)}% from entry $${entry} — forcing SELL`);
-          await telegram.send(`💰 <b>Take-profit triggered</b>\n<code>${ticker}</code>  Entry: $${entry.toLocaleString("en-US")}  Now: $${market.price.toLocaleString("en-US")}  (+${pct.toFixed(2)}%)`);
+          console.log(`[RISK] Take-profit triggered: +${pct.toFixed(2)}% from entry $${fmt(entry)} — forcing SELL`);
+          await telegram.send(`💰 <b>Take-profit triggered</b>\n<code>${ticker}</code>  Entry: $${fmt(entry)}  Now: $${fmt(current)}  (+${pct.toFixed(2)}%)`);
           signal = "SELL"; riskOverride = true;
         }
       }

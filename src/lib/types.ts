@@ -61,6 +61,7 @@ export interface OrderResult {
 export interface Position {
   quantity: string;
   averagePrice: string;
+  currentPrice: string;
   ppl: string;
 }
 
