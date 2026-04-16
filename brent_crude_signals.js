@@ -46,6 +46,9 @@ const RSS_FEEDS = [
   // Google News RSS — free, no key, aggregates Reuters/AP/FT/Bloomberg
   "https://news.google.com/rss/search?q=brent+crude+oil&hl=en-US&gl=US&ceid=US:en",
   "https://news.google.com/rss/search?q=oil+OPEC+geopolitical&hl=en-US&gl=US&ceid=US:en",
+  // Iranian perspective — directly relevant for Hormuz/sanctions/supply risk
+  "https://www.presstv.ir/rss.xml",   // Press TV (Iran state English broadcaster)
+  "https://en.irna.ir/rss",           // IRNA (Islamic Republic News Agency)
 ];
 
 // ---------------------------------------------------------------------------
