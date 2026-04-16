@@ -154,6 +154,32 @@ async function fetchNewsApiNews(query = "oil brent crude geopolitical") {
   }
 }
 
+async function fetchTrumpPosts() {
+  const parser = new RssParser();
+  // Truth Social (Mastodon-based) has native RSS; Nitter instances as fallback for X
+  const sources = [
+    { url: "https://truthsocial.com/@realDonaldTrump.rss",        label: "Trump/TruthSocial" },
+    { url: "https://nitter.privacydev.net/realDonaldTrump/rss",   label: "Trump/X" },
+    { url: "https://nitter.poast.org/realDonaldTrump/rss",        label: "Trump/X" },
+    { url: "https://nitter.net/realDonaldTrump/rss",              label: "Trump/X" },
+  ];
+  for (const { url, label } of sources) {
+    try {
+      const feed = await parser.parseURL(url);
+      const items = feed.items
+        .slice(0, 15)
+        .map((e) => ({
+          title: (e.title || e.contentSnippet || "").replace(/<[^>]+>/g, "").trim().slice(0, 280),
+          source: label,
+        }))
+        .filter((i) => i.title.length > 5);
+      if (items.length > 0) return items;
+    } catch (_) { /* try next source */ }
+  }
+  console.warn("[WARN] Could not fetch Trump posts from any source.");
+  return [];
+}
+
 // ---------------------------------------------------------------------------
 // Market data
 // ---------------------------------------------------------------------------
@@ -587,6 +613,9 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
 
   console.log("[INFO] Fetching NewsAPI headlines …");
   items = items.concat(await fetchNewsApiNews());
+
+  console.log("[INFO] Fetching Trump posts …");
+  items = items.concat(await fetchTrumpPosts());
 
   console.log(`[INFO] Fetched ${items.length} articles …`);
 
