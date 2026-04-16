@@ -1,18 +1,16 @@
 import "dotenv/config";
 import { program } from "commander";
 
-import { C, col } from "../lib/colors.js";
 import { Trading212Client } from "../lib/t212.js";
 import { fetchRssNews, fetchNewsApiNews, fetchTrumpPosts } from "../lib/news.js";
-import { computeMomentum, computeNewsHash } from "../lib/momentum.js";
-import { callAI } from "../lib/ai.js";
+import { computeSignal } from "../lib/signal.js";
 import { createRedisClient } from "../lib/redis.js";
 import { createTelegramClient } from "../lib/telegram.js";
 import { printAccountInfo, printPositionInfo, printSignal, printTopItems, printDisclaimer, printMarketData, printHeader } from "../lib/display.js";
 import { executeSignal, cmdSearchInstruments, runLoop } from "../lib/execution.js";
 import { DEFAULT_TICKER, MAX_ORDER_QTY, STOP_LOSS_PCT, TAKE_PROFIT_PCT, NEWS_API_QUERY, AI_BLEND, RSS_FEEDS, isRelevant } from "./config.js";
 import { fetchMarketData, fetchPriceHistory } from "./market.js";
-import type { MarketData, Signal, SignalResult } from "../lib/types.js";
+import type { MarketData } from "../lib/types.js";
 
 // Hard process-exit guard
 setTimeout(() => {
@@ -29,18 +27,12 @@ const GROQ_API_KEY       = process.env.GROQ_API_KEY       ?? "";
 const redis    = createRedisClient(process.env.UPSTASH_REDIS_REST_URL, process.env.UPSTASH_REDIS_REST_TOKEN);
 const telegram = createTelegramClient(process.env.TELEGRAM_BOT_TOKEN, process.env.TELEGRAM_CHAT_ID);
 
-async function computeSignal(
-  items: Array<{ title: string; source: string; pubDate: Date | null }>,
-  market: MarketData | null,
-  history: number[]
-): Promise<SignalResult> {
-  const newsHash = computeNewsHash(items);
-  const headlines = items.map((i) => `- ${i.title} [${i.source}]`).join("\n");
+function buildPrompt(headlines: string, market: MarketData | null): string {
   const priceCtx = market
     ? `Current Brent crude price: $${market.price.toFixed(2)} (${market.changePct >= 0 ? "+" : ""}${market.changePct.toFixed(2)}% today).`
     : "Current Brent crude price: unavailable.";
 
-  const prompt = `You are an expert oil market analyst.
+  return `You are an expert oil market analyst.
 
 Your task: analyse the headlines and price below, then output your answer.
 
@@ -62,17 +54,6 @@ Latest headlines:
 ${headlines}
 
 Your JSON response:`;
-
-  const { aiScore, reasoning, aiAvailable } = await callAI(prompt, OPENROUTER_API_KEY, GROQ_API_KEY);
-  const { momentumScore, rsi } = computeMomentum(market, history);
-  const blendedScore = Math.round(aiScore * AI_BLEND.ai + momentumScore * AI_BLEND.momentum);
-  const signal: Signal = !aiAvailable ? "HOLD" : blendedScore > 15 ? "BUY" : blendedScore < -15 ? "SELL" : "HOLD";
-
-  console.log(`  ${C.dim}Nemotron reasoning: ${reasoning}${C.reset}`);
-  const rsiStr = rsi !== null ? `RSI ${rsi.toFixed(1)}` : "RSI n/a";
-  console.log(`  ${C.dim}Momentum score: ${momentumScore >= 0 ? "+" : ""}${momentumScore}  (${rsiStr})  →  AI ${aiScore >= 0 ? "+" : ""}${aiScore}  →  Blended ${blendedScore >= 0 ? "+" : ""}${blendedScore}${C.reset}\n`);
-
-  return { signal, netScore: blendedScore, aiScore, momentumScore, rsi, newsHash, reasoning };
 }
 
 
@@ -110,7 +91,7 @@ export async function runOnce(
   console.log("[INFO] Fetching price history for momentum …");
   const history = await fetchPriceHistory(14);
 
-  let { signal, netScore, aiScore, momentumScore, rsi, newsHash, reasoning } = await computeSignal(items, market, history);
+  let { signal, netScore, aiScore, momentumScore, rsi, newsHash, reasoning } = await computeSignal(items, market, history, buildPrompt, AI_BLEND, OPENROUTER_API_KEY, GROQ_API_KEY);
 
   printMarketData(market, "Brent Crude", (p) => p.toFixed(2));
   printSignal(signal, netScore);
