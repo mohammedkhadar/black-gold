@@ -2,10 +2,10 @@ import axios from "axios";
 import type { AIResult } from "./types.js";
 
 const OPENROUTER_MODELS = [
-  "nvidia/nemotron-3-super-120b-a12b:free",
-  "nvidia/nemotron-3-super-120b-a12b:free",
+  "nvidia/nemotron-3-super-120b-a12b:free", // attempt 1 — Nemotron (separate rate-limit pool)
+  "openai/gpt-oss-120b:free",               // attempt 2 — GPT-OSS 120B (different pool)
 ] as const;
-const GROQ_MODEL = "openai/gpt-oss-120b";
+const GROQ_MODEL = "llama-3.3-70b-versatile"; // attempt 3 — reliable JSON, high RPM
 
 interface ParsedAIResponse {
   signal?: unknown;
