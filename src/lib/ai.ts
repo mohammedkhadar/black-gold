@@ -2,10 +2,10 @@ import axios from "axios";
 import type { AIResult } from "./types.js";
 
 const OPENROUTER_MODELS = [
-  "nvidia/nemotron-3-super-120b-a12b:free", // attempt 1 — Nemotron (separate rate-limit pool)
-  "openai/gpt-oss-120b:free",               // attempt 2 — GPT-OSS 120B (different pool)
+  "nvidia/nemotron-3-super-120b-a12b:free",  // attempt 1 — Nemotron
+  "openai/gpt-oss-120b:free",                // attempt 2 — GPT-OSS 120B (different pool)
+  "moonshotai/kimi-k2-instruct-0905",        // attempt 3 — Kimi K2
 ] as const;
-const GROQ_MODEL = "llama-3.3-70b-versatile"; // attempt 3 — reliable JSON, high RPM
 
 interface ParsedAIResponse {
   signal?: unknown;
@@ -16,8 +16,7 @@ interface ParsedAIResponse {
 
 /**
  * Call the AI with up to 3 attempts:
- *   Attempts 1 & 2 → OpenRouter Nemotron (with json_object response_format)
- *   Attempt 3      → Groq gpt-oss-120b (no response_format, uses regex fallback)
+ *   All 3 → OpenRouter (Nemotron → GPT-OSS 120B → Kimi K2)
  */
 export async function callAI(
   prompt: string,
@@ -30,21 +29,18 @@ export async function callAI(
   for (let attempt = 1; attempt <= 3; attempt++) {
     let content = "";
     try {
-      const useGroq = attempt === 3;
       const res = await axios.post<{ choices: Array<{ message?: { content?: string } }> }>(
-        useGroq
-          ? "https://api.groq.com/openai/v1/chat/completions"
-          : "https://openrouter.ai/api/v1/chat/completions",
+        "https://openrouter.ai/api/v1/chat/completions",
         {
-          model: useGroq ? GROQ_MODEL : OPENROUTER_MODELS[attempt - 1],
+          model: OPENROUTER_MODELS[attempt - 1],
           messages: [{ role: "user", content: prompt }],
           max_tokens: 300,
           temperature: 0.2,
-          ...(useGroq ? {} : { response_format: { type: "json_object" } }),
+          ...(attempt < 3 ? { response_format: { type: "json_object" } } : {}),
         },
         {
           headers: {
-            Authorization: `Bearer ${useGroq ? groqKey : openrouterKey}`,
+            Authorization: `Bearer ${openrouterKey}`,
             "Content-Type": "application/json",
           },
           timeout: 30000,
@@ -57,7 +53,7 @@ export async function callAI(
         console.warn(`[WARN] All AI attempts failed (${msg}) — defaulting to HOLD.`);
         break;
       }
-      console.warn(`[WARN] OpenRouter attempt ${attempt} (${OPENROUTER_MODELS[attempt - 1]}) failed (${msg}) — retrying …`);
+      console.warn(`[WARN] Attempt ${attempt} (${OPENROUTER_MODELS[attempt - 1]}) failed (${msg}) — retrying …`);
       await new Promise((r) => setTimeout(r, 3000 * attempt));
       continue;
     }
