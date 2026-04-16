@@ -34,6 +34,7 @@ const T212_API_KEY        = process.env.T212_API_KEY;
 const T212_API_SECRET     = process.env.T212_SECRET_KEY;
 const NEWS_API_KEY        = process.env.NEWS_API_KEY;
 const OPENROUTER_API_KEY  = process.env.OPENROUTER_API_KEY;
+const GROQ_API_KEY        = process.env.GROQ_API_KEY;
 const TELEGRAM_BOT_TOKEN  = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID    = process.env.TELEGRAM_CHAT_ID;
 const UPSTASH_URL         = process.env.UPSTASH_REDIS_REST_URL;
@@ -393,20 +394,23 @@ ${headlines}
 
 Your JSON response:`;
 
-  const MODELS = [
+  const OPENROUTER_MODELS = [
     "nvidia/nemotron-3-super-120b-a12b:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
-    "moonshotai/kimi-k2:free",
   ];
+  const GROQ_MODEL = "qwen/qwen3-32b";
   let parsed;
   let aiAvailable = true;
   for (let attempt = 1; attempt <= 3; attempt++) {
     let content = "";
     try {
+      const useGroq = attempt === 3;
       const res = await axios.post(
-        "https://openrouter.ai/api/v1/chat/completions",
+        useGroq
+          ? "https://api.groq.com/openai/v1/chat/completions"
+          : "https://openrouter.ai/api/v1/chat/completions",
         {
-          model: MODELS[attempt - 1],
+          model: useGroq ? GROQ_MODEL : OPENROUTER_MODELS[attempt - 1],
           messages: [{ role: "user", content: prompt }],
           max_tokens: 300,
           temperature: 0.2,
@@ -414,7 +418,7 @@ Your JSON response:`;
         },
         {
           headers: {
-            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+            Authorization: `Bearer ${useGroq ? GROQ_API_KEY : OPENROUTER_API_KEY}`,
             "Content-Type": "application/json",
           },
           timeout: 30000,
@@ -423,10 +427,10 @@ Your JSON response:`;
       content = res.data.choices[0]?.message?.content?.trim() ?? "";
     } catch (err) {
       if (attempt === 3) {
-        console.warn(`[WARN] All OpenRouter attempts failed (${err.message}) — defaulting to HOLD.`);
+        console.warn(`[WARN] All attempts failed (${err.message}) — defaulting to HOLD.`);
         break;
       }
-      console.warn(`[WARN] OpenRouter attempt ${attempt} (${MODELS[attempt-1]}) failed (${err.message}) — retrying …`);
+      console.warn(`[WARN] OpenRouter attempt ${attempt} (${OPENROUTER_MODELS[attempt-1]}) failed (${err.message}) — retrying …`);
       await new Promise((r) => setTimeout(r, 3000 * attempt));
       continue;
     }
