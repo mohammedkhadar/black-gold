@@ -692,9 +692,9 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
   printSignal(signal, netScore);
   printTopItems(items);
 
-  // Always send Telegram signal notification
-  {
-    const emoji = signal === "BUY" ? "🟢" : signal === "SELL" ? "🔴" : "🟡";
+  // Send Telegram notification for BUY/SELL only
+  if (signal !== "HOLD") {
+    const emoji = signal === "BUY" ? "🟢" : "🔴";
     const priceStr = market ? ` @ $${market.price.toLocaleString("en-US", { maximumFractionDigits: 0 })} (${market.changePct >= 0 ? "+" : ""}${market.changePct.toFixed(2)}%)` : "";
     await sendTelegram(
       `${emoji} <b>Bitcoin ${signal}</b>${priceStr}\n` +
