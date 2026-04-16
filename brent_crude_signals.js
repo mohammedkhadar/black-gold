@@ -667,9 +667,9 @@ async function runOnce(client, ticker, orderQty, execute, autoConfirm) {
   items = items.concat(await fetchTrumpPosts());
 
   const before = items.length;
-  const cutoff = new Date(Date.now() - 3 * 60 * 60 * 1000); // 3 hours ago
+  const cutoff = new Date(Date.now() - 5 * 60 * 60 * 1000); // 5 hours ago
   items = items.filter((i) => isOilRelevant(i.title) && (!i.pubDate || i.pubDate >= cutoff));
-  console.log(`[INFO] Fetched ${before} articles, ${items.length} oil-relevant within last 3h …`);
+  console.log(`[INFO] Fetched ${before} articles, ${items.length} oil-relevant within last 5h …`);
 
   console.log("[INFO] Fetching price history for momentum …");
   const history = await fetchPriceHistory(14);
