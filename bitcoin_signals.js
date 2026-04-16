@@ -44,8 +44,8 @@ const T212_BASE = "https://demo.trading212.com/api/v0";
 // iShares Bitcoin ETP (Acc) — BlackRock, GBP, LSE, Schedule 70
 const DEFAULT_TICKER  = "IB1Tl_EQ";
 const MAX_ORDER_QTY   = 1000;
-const STOP_LOSS_PCT   = 5;   // close if position is down ≥ 5% from entry
-const TAKE_PROFIT_PCT = 10;  // close if position is up ≥ 10% from entry
+const STOP_LOSS_PCT   = 3;   // close if position is down ≥ 3% from entry
+const TAKE_PROFIT_PCT = 5;  // close if position is up ≥ 5% from entry
 
 const RSS_FEEDS = [
   // Dedicated crypto news
