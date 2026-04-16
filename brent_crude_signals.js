@@ -29,10 +29,12 @@ import readline from "node:readline";
 // Configuration
 // ---------------------------------------------------------------------------
 
-const T212_API_KEY      = process.env.T212_API_KEY;
-const T212_API_SECRET   = process.env.T212_SECRET_KEY;
-const NEWS_API_KEY      = process.env.NEWS_API_KEY;
+const T212_API_KEY       = process.env.T212_API_KEY;
+const T212_API_SECRET    = process.env.T212_SECRET_KEY;
+const NEWS_API_KEY       = process.env.NEWS_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID;
 
 const T212_BASE       = "https://demo.trading212.com/api/v0";
 
@@ -556,6 +558,23 @@ function printDisclaimer() {
 }
 
 // ---------------------------------------------------------------------------
+// Telegram notifications
+// ---------------------------------------------------------------------------
+
+async function sendTelegram(text) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+  try {
+    await axios.post(
+      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+      { chat_id: TELEGRAM_CHAT_ID, text, parse_mode: "HTML" },
+      { timeout: 10000 }
+    );
+  } catch (err) {
+    console.warn(`[WARN] Telegram notification failed: ${err.message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Order execution
 // ---------------------------------------------------------------------------
 
@@ -613,6 +632,13 @@ async function executeSignal(client, signal, ticker, orderQty, autoConfirm = fal
     const sigColor = signal === "BUY" ? C.green : C.red;
     console.log(`\n  ${col(sigColor, "Order submitted")}  id=${order.id ?? "?"}`);
     console.log(`[INFO] Order response: ${JSON.stringify(order, null, 2)}`);
+    const emoji = signal === "BUY" ? "🟢" : "🔴";
+    await sendTelegram(
+      `${emoji} <b>Brent Crude ${signal}</b> — ${client.mode}\n` +
+      `Ticker: <code>${ticker}</code>  qty: ${sellQty}\n` +
+      `Order ID: ${order.id ?? "?"}\n` +
+      `Time: ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`
+    );
     return order;
   } catch (err) {
     const msg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
